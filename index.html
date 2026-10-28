@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hummagroove</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Hummagroove</h1>
+      <p class="tagline">Hum or sing a melody. Hear it back as a bass line and keys.</p>
+    </header>
+
+    <section class="panel" aria-labelledby="capture-heading">
+      <h2 id="capture-heading">1. Capture</h2>
+      <div class="row">
+        <button id="record" class="primary">● Record</button>
+        <label class="file-button">
+          or open an audio file
+          <input id="file" type="file" accept="audio/*">
+        </label>
+        <span id="timer" class="muted" aria-live="polite"></span>
+      </div>
+      <canvas id="meter" width="600" height="8" aria-hidden="true"></canvas>
+    </section>
+
+    <section class="panel" aria-labelledby="arrange-heading">
+      <h2 id="arrange-heading">2. Arrange</h2>
+      <div class="controls">
+        <label>Bass
+          <select id="bassMode">
+            <option value="melody">Follow the melody</option>
+            <option value="roots">Chord roots</option>
+          </select>
+        </label>
+        <label>Keys
+          <select id="keysMode">
+            <option value="chords">Melody + chords</option>
+            <option value="melody">Melody only</option>
+          </select>
+        </label>
+        <label><input id="quantize" type="checkbox" checked> Snap to grid</label>
+        <label>Tempo
+          <input id="bpm" type="number" min="40" max="220" value="100"> BPM
+        </label>
+        <label>Transpose
+          <input id="transpose" type="number" min="-12" max="12" value="0"> st
+        </label>
+      </div>
+      <p id="summary" class="muted" aria-live="polite">Record something to get started.</p>
+      <canvas id="roll" width="900" height="300" aria-label="Piano roll of the detected notes"></canvas>
+      <div class="legend">
+        <span class="swatch melody"></span> Your melody
+        <span class="swatch bass"></span> Bass
+        <span class="swatch keys"></span> Keys
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="play-heading">
+      <h2 id="play-heading">3. Play</h2>
+      <div class="row">
+        <button id="play" class="primary" disabled>▶ Play</button>
+        <button id="stop" disabled>■ Stop</button>
+        <label><input id="loop" type="checkbox"> Loop</label>
+        <label><input id="playBass" type="checkbox" checked> Bass</label>
+        <label><input id="playKeys" type="checkbox" checked> Keys</label>
+        <label><input id="playVoice" type="checkbox"> Original recording</label>
+        <button id="midi" disabled>⬇ Download MIDI</button>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
