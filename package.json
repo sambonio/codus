@@ -1,0 +1,11 @@
+{
+  "name": "hummagroove",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hum or sing a melody and hear it back as a bass line and keys.",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve -l 8080 .",
+    "test": "node --test"
+  }
+}

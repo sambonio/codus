@@ -1,0 +1,82 @@
+:root {
+  --bg: #f6f4ef;
+  --panel: #ffffff;
+  --text: #1d1b16;
+  --muted: #6b665c;
+  --border: #e2ddd2;
+  --accent: #d9480f;
+  --melody: #868e96;
+  --bass: #1971c2;
+  --keys: #e8590c;
+  --grid: #eeeae2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161513;
+    --panel: #201f1c;
+    --text: #f1eee7;
+    --muted: #a39e93;
+    --border: #35332e;
+    --accent: #ff7a3d;
+    --melody: #adb5bd;
+    --bass: #4dabf7;
+    --keys: #ff922b;
+    --grid: #2a2925;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+
+h1 { margin: 0; font-size: 2rem; }
+h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.tagline, .muted { color: var(--muted); }
+.tagline { margin-top: 4px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.row, .controls { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
+.controls { margin-bottom: 8px; }
+
+button, select, input[type="number"] {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+}
+input[type="number"] { width: 4.5em; }
+button { cursor: pointer; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.recording { animation: pulse 1s infinite alternate; }
+@keyframes pulse { to { opacity: 0.6; } }
+
+.file-button { color: var(--muted); text-decoration: underline; cursor: pointer; }
+.file-button input { display: none; }
+
+canvas { display: block; width: 100%; }
+#meter { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--grid); }
+#roll { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+
+.legend { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 0.9rem; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; margin-left: 8px; }
+.swatch.melody { background: var(--melody); }
+.swatch.bass { background: var(--bass); }
+.swatch.keys { background: var(--keys); }
