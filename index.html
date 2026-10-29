@@ -81,8 +81,29 @@
       <p id="builderStatus" class="muted" aria-live="polite"></p>
     </section>
 
+    <section class="panel" aria-labelledby="takes-heading">
+      <h2 id="takes-heading">4. Record your own</h2>
+      <div class="row">
+        <label>Recording
+          <select id="takeKind">
+            <option value="drums">Drums</option>
+            <option value="percussion">Percussion</option>
+            <option value="guitar">Guitar</option>
+            <option value="vocals">Vocals</option>
+            <option value="other">Other instrument</option>
+          </select>
+        </label>
+        <button id="recordTake" class="primary">● Record a take</button>
+        <label><input id="countIn" type="checkbox" checked> Count-in</label>
+        <label><input id="click" type="checkbox" checked> Click track</label>
+        <span id="takeTimer" class="muted" aria-live="polite"></span>
+      </div>
+      <canvas id="takeMeter" width="600" height="8" aria-hidden="true"></canvas>
+      <p id="takeStatus" class="muted" aria-live="polite">Play drums, guitar or anything else along with your song, or start with drums before you hum anything. Each take becomes a track in the mix below. Wear headphones so the backing track doesn't leak into the mic.</p>
+    </section>
+
     <section class="panel" aria-labelledby="play-heading">
-      <h2 id="play-heading">4. Mix and play</h2>
+      <h2 id="play-heading">5. Mix and play</h2>
       <p class="muted">Set each instrument's level and position before you take the song into GarageBand.</p>
       <canvas id="timeline" width="900" height="120" aria-label="Timeline with a lane for each instrument"></canvas>
       <div id="tracks" class="tracks" aria-label="Tracks"></div>

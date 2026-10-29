@@ -11,7 +11,10 @@
 // user changes survive re-arranging, and extra tracks are regenerated from
 // the new melody. Tracks with any other role are carried over untouched.
 // `markers` are the song's sections in order (see src/arrangement.js).
+// Recorded audio tracks (role 'audio', see src/takes.js) are carried over like
+// that too, and a song can hold only those before anything has been hummed.
 import { generatePart } from './parts.js';
+import { isTake, takeEnd } from './takes.js';
 
 export const DEFAULT_TRACKS = [
   { id: 'bass', name: 'Bass', role: 'bass', instrument: 'electric-bass', volume: 0.9, pan: 0, muted: false, solo: false },
@@ -62,9 +65,14 @@ export function audibleGain(track, tracks) {
   return track.volume;
 }
 
-/** Where the song ends: the last section's bar line, or the last note. */
+/** A song with no hummed melody yet, holding recorded tracks. */
+export function audioOnlySong(bpm, tracks) {
+  return { bpm, key: null, origin: 0, melody: [], tracks, markers: [] };
+}
+
+/** Where the song ends: the last section's bar line, the last note or the end of the last take. */
 export function songLength(song) {
   const end = song.markers?.length ? song.markers[song.markers.length - 1].end : 0;
   const notes = [...song.melody, ...song.tracks.flatMap((t) => t.notes)];
-  return Math.max(end, ...notes.map((n) => n.start + n.duration));
+  return Math.max(end, ...notes.map((n) => n.start + n.duration), ...song.tracks.filter(isTake).map(takeEnd));
 }

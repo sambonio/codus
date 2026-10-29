@@ -9,6 +9,7 @@
   --bass: #1971c2;
   --keys: #e8590c;
   --extra: #2f9e44;
+  --take: #9c36b5;
   --grid: #eeeae2;
 }
 
@@ -24,6 +25,7 @@
     --bass: #4dabf7;
     --keys: #ff922b;
     --extra: #69db7c;
+    --take: #da77f2;
     --grid: #2a2925;
   }
 }
@@ -74,7 +76,7 @@ button.recording { animation: pulse 1s infinite alternate; }
 .file-button input { display: none; }
 
 canvas { display: block; width: 100%; }
-#meter { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--grid); }
+#meter, #takeMeter { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--grid); }
 #timeline { margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 #roll { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 
@@ -84,6 +86,7 @@ canvas { display: block; width: 100%; }
 .swatch.bass { background: var(--bass); }
 .swatch.keys { background: var(--keys); }
 .swatch.extra { background: var(--extra); }
+.swatch.take { background: var(--take); }
 
 .tracks { display: grid; gap: 8px; margin-bottom: 12px; }
 .tracks:empty { display: none; }
@@ -113,3 +116,7 @@ canvas { display: block; width: 100%; }
 .block button:hover:not(:disabled) { color: var(--text); }
 .track label.pan { display: inline-flex; gap: 6px; align-items: center; }
 .track input.pan-range { width: 80px; }
+.track input.take-name { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; margin-left: -6px; width: 12em; }
+.track input.take-name:hover, .track input.take-name:focus { border-color: var(--border); }
+.track-name:has(input.take-name) { display: flex; gap: 8px; align-items: center; }
+.track input.nudge { width: 4.5em; }

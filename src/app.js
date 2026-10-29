@@ -2,11 +2,15 @@ import { detectPitchTrack, downsample } from './pitch.js';
 import { segmentNotes, quantizeNotes, midiToName } from './notes.js';
 import { playParts } from './synth.js';
 import { getInstrument, instrumentGroups, loadInstrument } from './instruments/index.js';
-import { buildSong, songLength, addExtraTrack, setTrackPart, audibleGain } from './song.js';
+import { buildSong, songLength, addExtraTrack, setTrackPart, audibleGain, audioOnlySong } from './song.js';
 import { buildTimeline, createSection, moveInOrder, removeSection } from './arrangement.js';
 import { PART_TYPES } from './parts.js';
 import { buildFromDescription, SUGGESTIONS } from './builder.js';
 import { writeMidi } from './midi.js';
+import {
+  TAKE_KINDS, createTake, isTake, takeStart, uniqueTakeName, assembleTake, takePeaks, takeToWav, takePart,
+  estimateLatency, startCapture, startMetronome,
+} from './takes.js';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -18,6 +22,8 @@ const ui = {
   sections: $('sections'), sectionName: $('sectionName'), deleteSection: $('deleteSection'),
   order: $('order'), addToOrder: $('addToOrder'),
   builderForm: $('builderForm'), builderText: $('builderText'), builderSuggestions: $('builderSuggestions'), builderStatus: $('builderStatus'),
+  takeKind: $('takeKind'), recordTake: $('recordTake'), countIn: $('countIn'), click: $('click'),
+  takeTimer: $('takeTimer'), takeMeter: $('takeMeter'), takeStatus: $('takeStatus'),
 };
 
 let audioCtx = null;
@@ -27,8 +33,9 @@ const state = {
   sections: [],
   order: [],       // section ids, first to last; repeats allowed
   selected: null,  // the section Record captures into
-  song: null,      // see src/song.js
+  song: null,      // see src/song.js; recorded takes are tracks in it too
   playback: null,
+  takeSession: null, // a take being recorded
 };
 
 function getCtx() {
@@ -40,9 +47,37 @@ function getCtx() {
 // ---------- Capture ----------
 
 let recorder = null;
-let meterRaf = 0;
+
+/** Draw a live level meter for an audio node on a canvas until stop() is called. */
+function startMeter(ctx, node, canvas, onFrame = () => {}) {
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  node.connect(analyser);
+  const buf = new Float32Array(analyser.fftSize);
+  const g = canvas.getContext('2d');
+  let raf = 0;
+  const draw = () => {
+    analyser.getFloatTimeDomainData(buf);
+    let peak = 0;
+    for (const v of buf) peak = Math.max(peak, Math.abs(v));
+    g.clearRect(0, 0, canvas.width, canvas.height);
+    g.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent');
+    g.fillRect(0, 0, canvas.width * Math.min(1, peak * 1.5), canvas.height);
+    onFrame();
+    raf = requestAnimationFrame(draw);
+  };
+  draw();
+  return {
+    stop() {
+      cancelAnimationFrame(raf);
+      g.clearRect(0, 0, canvas.width, canvas.height);
+      analyser.disconnect();
+    },
+  };
+}
 
 async function startRecording() {
+  if (state.takeSession) return;
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -55,30 +90,16 @@ async function startRecording() {
 
   const ctx = getCtx();
   const source = ctx.createMediaStreamSource(stream);
-  const analyser = ctx.createAnalyser();
-  analyser.fftSize = 1024;
-  source.connect(analyser);
-  const buf = new Float32Array(analyser.fftSize);
-  const meterCtx = ui.meter.getContext('2d');
   const startedAt = performance.now();
-  const drawMeter = () => {
-    analyser.getFloatTimeDomainData(buf);
-    let peak = 0;
-    for (const v of buf) peak = Math.max(peak, Math.abs(v));
-    meterCtx.clearRect(0, 0, ui.meter.width, ui.meter.height);
-    meterCtx.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent');
-    meterCtx.fillRect(0, 0, ui.meter.width * Math.min(1, peak * 1.5), ui.meter.height);
+  const meter = startMeter(ctx, source, ui.meter, () => {
     ui.timer.textContent = `${((performance.now() - startedAt) / 1000).toFixed(1)}s`;
-    meterRaf = requestAnimationFrame(drawMeter);
-  };
-  drawMeter();
+  });
 
   const chunks = [];
   recorder = new MediaRecorder(stream);
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   recorder.onstop = async () => {
-    cancelAnimationFrame(meterRaf);
-    meterCtx.clearRect(0, 0, ui.meter.width, ui.meter.height);
+    meter.stop();
     source.disconnect();
     stream.getTracks().forEach((t) => t.stop());
     const blob = new Blob(chunks, { type: recorder.mimeType });
@@ -250,7 +271,7 @@ ui.deleteSection.addEventListener('click', () => {
 });
 
 function rebuild() {
-  stopPlayback();
+  if (!state.takeSession) stopPlayback();
   const recorded = state.sections.filter(hasNotes);
   const bpm = clampBpm();
   const transpose = Number(ui.transpose.value) || 0;
@@ -265,12 +286,14 @@ function rebuild() {
     : null;
 
   if (!timeline?.markers.length) {
-    state.song = null;
+    // Recorded takes stay, in a song with nothing hummed yet.
+    const takes = state.song?.tracks.filter(isTake) ?? [];
+    state.song = takes.length ? audioOnlySong(bpm, takes) : null;
     renderTracks();
     ui.summary.textContent = recorded.length
       ? 'Add a section to the song order to hear it.'
       : 'Record something to get started.';
-    setPlayable(false);
+    setPlayable();
     drawRoll();
     drawTimeline();
     return;
@@ -284,7 +307,7 @@ function rebuild() {
   const bars = Math.round(markers[markers.length - 1].end / ((4 * 60) / bpm));
   const sections = markers.length === 1 ? '1 section' : `${markers.length} sections`;
   ui.summary.textContent = `${sections}, ${bars} bars, range ${range}, sounds like ${key.name}.`;
-  setPlayable(true);
+  setPlayable();
   drawRoll();
   drawTimeline();
 }
@@ -294,9 +317,9 @@ function clampBpm() {
   return bpm;
 }
 
-function setPlayable(on) {
-  ui.play.disabled = !on;
-  ui.midi.disabled = !on;
+function setPlayable() {
+  ui.play.disabled = !state.song || !!state.takeSession;
+  ui.midi.disabled = !state.song?.melody.length;
 }
 
 for (const el of [ui.bassMode, ui.keysMode, ui.quantize, ui.bpm, ui.transpose]) {
@@ -313,7 +336,24 @@ function renderTracks() {
 
     const name = document.createElement('span');
     name.className = 'track-name';
-    name.textContent = track.name;
+    if (isTake(track)) {
+      // Recorded takes can be renamed; instrument tracks are named by their instrument.
+      const input = document.createElement('input');
+      input.className = 'take-name';
+      input.value = track.name;
+      input.setAttribute('aria-label', 'Track name');
+      input.addEventListener('change', () => {
+        track.name = input.value.trim() || track.name;
+        input.value = track.name;
+        drawTimeline();
+      });
+      const kind = document.createElement('span');
+      kind.className = 'muted';
+      kind.textContent = `Recorded ${TAKE_KINDS[track.kind]?.toLowerCase() ?? 'audio'}`;
+      name.append(input, kind);
+    } else {
+      name.textContent = track.name;
+    }
 
     const select = document.createElement('select');
     select.setAttribute('aria-label', `${track.name} instrument`);
@@ -407,7 +447,8 @@ function renderTracks() {
     });
     solo.append(soloBox, ' Solo');
 
-    row.append(name, select, controls);
+    row.append(name);
+    if (!isTake(track)) row.append(select, controls);
     if (track.role === 'extra') {
       const part = document.createElement('select');
       part.setAttribute('aria-label', `${track.name} part`);
@@ -424,7 +465,8 @@ function renderTracks() {
     level.className = 'pan';
     level.append('Level', volume);
     row.append(level, pan, mute, solo);
-    if (track.role === 'extra') {
+    if (isTake(track)) row.append(...takeControls(track));
+    if (track.role === 'extra' || isTake(track)) {
       const remove = document.createElement('button');
       remove.className = 'remove';
       remove.textContent = '✕';
@@ -433,13 +475,15 @@ function renderTracks() {
       remove.addEventListener('click', () => {
         stopPlayback();
         state.song.tracks = state.song.tracks.filter((t) => t !== track);
+        if (!state.song.melody.length && !state.song.tracks.length) state.song = null;
+        setPlayable();
         renderTracks();
         drawRoll();
         drawTimeline();
       });
       row.append(remove);
     }
-    showControls();
+    if (!isTake(track)) showControls();
     ui.tracks.append(row);
   }
 }
@@ -455,7 +499,7 @@ function applyMix() {
 // ---------- Instrument builder ----------
 
 function addFromDescription(text) {
-  if (!state.song) {
+  if (!state.song?.melody.length) {
     ui.builderStatus.textContent = 'Hum a melody first, then add instruments to it.';
     return;
   }
@@ -489,7 +533,7 @@ for (const suggestion of SUGGESTIONS) {
 
 // Start fetching samples early so Play is instant.
 function preloadInstruments() {
-  for (const track of state.song?.tracks ?? []) {
+  for (const track of state.song?.tracks.filter((t) => !isTake(t)) ?? []) {
     loadInstrument(getCtx(), track.instrument).then((inst) => inst.prepare?.(track.notes)).catch(() => {});
   }
 }
@@ -498,16 +542,17 @@ function preloadInstruments() {
 
 let playRequest = 0;
 
-async function startPlayback() {
+// Load every track's instrument and resolve to the parts for playParts(), or
+// null if another play or stop happened while loading.
+async function prepareParts(ctx) {
   const song = state.song;
-  if (!song) return;
-  stopPlayback();
-  const ctx = getCtx();
   const request = ++playRequest;
 
   ui.play.textContent = '… Loading';
   const failed = [];
   const parts = await Promise.all(song.tracks.map(async (track) => {
+    const gain = audibleGain(track, song.tracks);
+    if (isTake(track)) return takePart(ctx, track, { gain });
     let instrument;
     try {
       instrument = await loadInstrument(ctx, track.instrument);
@@ -518,15 +563,31 @@ async function startPlayback() {
     }
     return {
       id: track.id, notes: track.notes, play: instrument.play, release: instrument.release,
-      gain: audibleGain(track, song.tracks), pan: track.pan ?? 0, reverb: instrument.reverb ?? 0,
+      gain, pan: track.pan ?? 0, reverb: instrument.reverb ?? 0,
     };
   }));
   ui.play.textContent = '▶ Play';
   if (failed.length) ui.summary.textContent = `Couldn't load ${failed.join(', ')}. Check your connection and press Play again.`;
-  // Another play or stop happened while loading.
-  if (request !== playRequest || state.playback) return;
+  if (request !== playRequest || state.playback) return null;
+  return parts.filter(Boolean);
+}
 
-  const handle = playParts(ctx, parts.filter(Boolean));
+async function startPlayback() {
+  if (!state.song || state.takeSession) return;
+  stopPlayback();
+  const ctx = getCtx();
+  const parts = await prepareParts(ctx);
+  if (parts) schedulePlayback(ctx, parts);
+}
+
+/**
+ * Start the song `lead` seconds from now. The playhead stops after `length`
+ * seconds (Infinity runs until stopPlayback()). Returns song time 0 in
+ * AudioContext time.
+ */
+function schedulePlayback(ctx, parts, { lead = 0.1, length = songLength(state.song) + 0.4 } = {}) {
+  const song = state.song;
+  const handle = playParts(ctx, parts, { offset: lead });
 
   // The original humming, section by section, under the band.
   const voices = [];
@@ -543,10 +604,10 @@ async function startPlayback() {
     }
   }
 
-  const length = songLength(song) + 0.4;
   state.playback = { handle, voices, startTime: handle.startTime, length };
   ui.stop.disabled = false;
   animatePlayhead();
+  return handle.startTime;
 }
 
 function stopPlayback() {
@@ -566,6 +627,10 @@ function animatePlayhead() {
   if (!p) return;
   const elapsed = audioCtx.currentTime - p.startTime;
   if (elapsed >= p.length) {
+    if (state.takeSession) {
+      stopTake();
+      return;
+    }
     stopPlayback();
     if (ui.loop.checked) startPlayback();
     return;
@@ -576,7 +641,147 @@ function animatePlayhead() {
 }
 
 ui.play.addEventListener('click', startPlayback);
-ui.stop.addEventListener('click', stopPlayback);
+ui.stop.addEventListener('click', () => (state.takeSession ? stopTake() : stopPlayback()));
+
+// ---------- Recording your own takes ----------
+
+async function recordTake() {
+  if (state.takeSession || recorder) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      // Raw signal: processing meant for voice calls mangles drums and instruments.
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+  } catch (err) {
+    ui.takeStatus.textContent = `Couldn't open the microphone: ${err.message}`;
+    return;
+  }
+  stopPlayback();
+  const ctx = getCtx();
+  const session = { stream, kind: ui.takeKind.value, starting: true };
+  state.takeSession = session;
+  setTakeRecordingUi(true);
+
+  try {
+    const parts = state.song ? await prepareParts(ctx) : [];
+    session.capture = await startCapture(ctx, stream);
+    if (state.takeSession !== session) { // stopped while starting
+      await session.capture.stop();
+      return;
+    }
+    const bpm = state.song?.bpm ?? clampBpm();
+    const beat = 60 / bpm;
+    const countIn = ui.countIn.checked ? 4 : 0;
+    // Stop at the end of the hummed song; with only takes to play along to, record until Stop.
+    const length = state.song?.melody.length ? songLength(state.song) + 0.5 : Infinity;
+    if (!state.song) state.song = audioOnlySong(bpm, []);
+    const songStart = schedulePlayback(ctx, parts || [], { lead: 0.15 + countIn * beat, length });
+    session.songStart = songStart;
+    session.latency = estimateLatency(ctx, stream);
+    session.metronome = startMetronome(ctx, {
+      startTime: songStart - countIn * beat, bpm, countIn, enabled: () => ui.click.checked,
+    });
+    session.meter = startMeter(ctx, session.capture.source, ui.takeMeter, () => {
+      const t = ctx.currentTime - songStart;
+      ui.takeTimer.textContent = t < 0 ? `Count-in ${Math.ceil(-t / beat)}` : `${t.toFixed(1)}s`;
+    });
+    session.starting = false;
+    ui.takeStatus.textContent = length < Infinity
+      ? 'Recording along with the song. It stops by itself at the end, or press Stop.'
+      : 'Recording. Press Stop when you are done.';
+  } catch (err) {
+    ui.takeStatus.textContent = `Couldn't start recording: ${err.message}`;
+    endTakeSession(session);
+  }
+}
+
+function endTakeSession(session) {
+  session.metronome?.stop();
+  session.meter?.stop();
+  session.stream.getTracks().forEach((t) => t.stop());
+  if (state.takeSession === session) state.takeSession = null;
+  stopPlayback();
+  if (state.song && !state.song.melody.length && !state.song.tracks.length) state.song = null;
+  setTakeRecordingUi(false);
+}
+
+async function stopTake() {
+  const session = state.takeSession;
+  if (!session) return;
+  if (session.starting) {
+    endTakeSession(session);
+    return;
+  }
+  const ctx = audioCtx;
+  const batches = await session.capture.stop();
+  endTakeSession(session);
+  const { samples, offset } = assembleTake(batches, {
+    songStartFrame: Math.round(session.songStart * ctx.sampleRate),
+    latencyFrames: Math.round(session.latency * ctx.sampleRate),
+    sampleRate: ctx.sampleRate,
+  });
+  if (samples.length < ctx.sampleRate * 0.2) {
+    ui.takeStatus.textContent = 'That take was too short to keep. Try again.';
+    return;
+  }
+  if (!state.song) state.song = audioOnlySong(clampBpm(), []);
+  const name = uniqueTakeName(session.kind, state.song.tracks);
+  const take = createTake({ kind: session.kind, name, samples, sampleRate: ctx.sampleRate, offset });
+  state.song.tracks.push(take);
+  ui.takeStatus.textContent = `Added "${take.name}" (${(samples.length / ctx.sampleRate).toFixed(1)}s) to the mix. If it sounds early or late, adjust its timing.`;
+  setPlayable();
+  renderTracks();
+  drawRoll();
+  drawTimeline();
+}
+
+function setTakeRecordingUi(on) {
+  ui.recordTake.textContent = on ? '■ Stop recording' : '● Record a take';
+  ui.recordTake.classList.toggle('recording', on);
+  ui.record.disabled = on;
+  ui.stop.disabled = !on && !state.playback;
+  if (!on) ui.takeTimer.textContent = '';
+  setPlayable();
+}
+
+ui.recordTake.addEventListener('click', () => (state.takeSession ? stopTake() : recordTake()));
+
+/** Timing nudge and WAV download for a take's row in the mix. */
+function takeControls(take) {
+  const timing = document.createElement('label');
+  timing.className = 'pan';
+  const nudge = document.createElement('input');
+  nudge.type = 'number';
+  nudge.className = 'nudge';
+  nudge.min = '-500';
+  nudge.max = '500';
+  nudge.step = '5';
+  nudge.value = String(take.nudge);
+  nudge.title = 'Move the take earlier (negative) or later, in milliseconds';
+  nudge.addEventListener('change', () => {
+    take.nudge = Math.max(-500, Math.min(500, Number(nudge.value) || 0));
+    nudge.value = String(take.nudge);
+    if (!state.takeSession) stopPlayback();
+    drawRoll();
+    drawTimeline();
+  });
+  timing.append('Timing', nudge, 'ms');
+
+  const wav = document.createElement('button');
+  wav.type = 'button';
+  wav.textContent = '⬇ WAV';
+  wav.title = 'Download as WAV, lined up to the start of the song';
+  wav.addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([takeToWav(take)], { type: 'audio/wav' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${take.name.replace(/[^\w -]+/g, '').trim() || 'take'}.wav`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  return [timing, wav];
+}
 
 // ---------- MIDI export ----------
 
@@ -585,7 +790,7 @@ ui.midi.addEventListener('click', () => {
   if (!song) return;
   const bytes = writeMidi([
     { name: 'Melody', notes: song.melody, program: 0 },
-    ...song.tracks.map((t) => ({ name: t.name, notes: t.notes, program: getInstrument(t.instrument)?.gmProgram ?? 0 })),
+    ...song.tracks.filter((t) => !isTake(t)).map((t) => ({ name: t.name, notes: t.notes, program: getInstrument(t.instrument)?.gmProgram ?? 0 })),
   ], { bpm: song.bpm });
   const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
   const link = document.createElement('a');
@@ -616,6 +821,7 @@ function drawRoll(playhead = null) {
   if (!song) return;
 
   const all = [...song.melody, ...song.tracks.flatMap((t) => t.notes)];
+  if (!all.length) return;
   const low = Math.min(...all.map((n) => n.midi)) - 1;
   const high = Math.max(...all.map((n) => n.midi)) + 1;
   const length = songLength(song);
@@ -683,8 +889,12 @@ function drawRoll(playhead = null) {
 function drawTimeline(playhead = null) {
   const canvas = ui.timeline;
   const song = state.song;
-  const lanes = song ? [{ name: 'Your melody', notes: song.melody, fill: '--melody', on: true },
-    ...song.tracks.map((t) => ({ name: t.name, notes: t.notes, fill: t.role === 'extra' ? '--extra' : `--${t.id}`, on: audibleGain(t, song.tracks) > 0 }))] : [];
+  const lanes = song ? [
+    ...(song.melody.length ? [{ name: 'Your melody', notes: song.melody, fill: '--melody', on: true }] : []),
+    ...song.tracks.map((t) => ({
+      name: t.name, notes: t.notes, take: isTake(t) ? t : null,
+      fill: isTake(t) ? '--take' : t.role === 'extra' ? '--extra' : `--${t.id}`, on: audibleGain(t, song.tracks) > 0,
+    }))] : [];
   canvas.hidden = !song;
   if (!song) return;
   const header = 20;
@@ -726,6 +936,10 @@ function drawTimeline(playhead = null) {
     g.stroke();
     g.fillStyle = lane.on ? color('--text') : color('--muted');
     g.fillText(lane.name, 6, top + laneH / 2, label - 10);
+    if (lane.take) {
+      drawWaveform(g, lane.take, { x, top, height: laneH, fill: color(lane.fill), alpha: lane.on ? 0.85 : 0.2 });
+      return;
+    }
     if (!lane.notes.length) return;
     // Each lane is a tiny piano roll scaled to its own range.
     const low = Math.min(...lane.notes.map((n) => n.midi));
@@ -752,6 +966,23 @@ function drawTimeline(playhead = null) {
     g.stroke();
     g.lineWidth = 1;
   }
+}
+
+/** A recorded take's waveform, placed on the timeline. */
+function drawWaveform(g, take, { x, top, height, fill, alpha }) {
+  const x0 = x(takeStart(take));
+  const buckets = Math.max(1, Math.round(x(takeStart(take) + take.samples.length / take.sampleRate) - x0));
+  const peaks = takePeaks(take.samples, buckets);
+  let max = 1e-6;
+  for (const p of peaks) max = Math.max(max, p);
+  const mid = top + height / 2;
+  g.globalAlpha = alpha;
+  g.fillStyle = fill;
+  for (let i = 0; i < buckets; i++) {
+    const h = Math.max(0.5, (peaks[i] / max) * (height / 2 - 4));
+    g.fillRect(x0 + i, mid - h, 1, h * 2);
+  }
+  g.globalAlpha = 1;
 }
 
 window.addEventListener('resize', () => {
