@@ -1,6 +1,7 @@
 // Minimal Standard MIDI File (type 1) writer so parts can be opened in a DAW.
 
 const PPQ = 480;
+const DRUM_CHANNEL = 9;
 
 function varLen(value) {
   let v = Math.max(0, Math.round(value));
@@ -31,7 +32,9 @@ function trackChunk(name, notes, channel, program, bpm) {
   events.sort((a, b) => a.tick - b.tick || a.order - b.order);
 
   const nameBytes = [...new TextEncoder().encode(name)];
-  const data = [0x00, 0xff, 0x03, ...varLen(nameBytes.length), ...nameBytes, 0x00, 0xc0 | channel, program];
+  const data = [0x00, 0xff, 0x03, ...varLen(nameBytes.length), ...nameBytes];
+  // Drum tracks on channel 10 use the GM drum map, so they need no program.
+  if (channel !== DRUM_CHANNEL) data.push(0x00, 0xc0 | channel, program);
   let last = 0;
   for (const e of events) {
     data.push(...varLen(e.tick - last), ...e.bytes);
@@ -41,14 +44,30 @@ function trackChunk(name, notes, channel, program, bpm) {
   return chunk('MTrk', data);
 }
 
-/** tracks: [{ name, notes, program }] -> Uint8Array of a .mid file. */
+/**
+ * Give each track its own channel, skipping channel 10 (drums) unless the
+ * track is a drum track, so GarageBand and other DAWs pick the right sounds.
+ */
+function assignChannels(tracks) {
+  let next = 0;
+  return tracks.map((t) => {
+    if (t.drums) return DRUM_CHANNEL;
+    if (next === DRUM_CHANNEL) next++;
+    return next++ % 16;
+  });
+}
+
+/** tracks: [{ name, notes, program, drums }] -> Uint8Array of a .mid file in 4/4. */
 export function writeMidi(tracks, { bpm = 120 } = {}) {
   const usPerBeat = Math.round(60_000_000 / bpm);
   const tempoTrack = chunk('MTrk', [
+    0x00, 0xff, 0x03, 0x05, ...[...'Tempo'].map((c) => c.charCodeAt(0)),
+    0x00, 0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08, // 4/4
     0x00, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff,
     0x00, 0xff, 0x2f, 0x00,
   ]);
   const header = chunk('MThd', [0x00, 0x01, 0x00, tracks.length + 1, (PPQ >> 8) & 0xff, PPQ & 0xff]);
-  const body = tracks.map((t, i) => trackChunk(t.name, t.notes, i, t.program ?? 0, bpm));
+  const channels = assignChannels(tracks);
+  const body = tracks.map((t, i) => trackChunk(t.name, t.notes, channels[i], t.program ?? 0, bpm));
   return new Uint8Array([...header, ...tempoTrack, ...body.flat()]);
 }

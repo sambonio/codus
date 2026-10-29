@@ -74,7 +74,16 @@
         <label><input id="playBass" type="checkbox" checked> Bass</label>
         <label><input id="playKeys" type="checkbox" checked> Keys</label>
         <label><input id="playVoice" type="checkbox"> Original recording</label>
-        <button id="midi" disabled>⬇ Download MIDI</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="export-heading">
+      <h2 id="export-heading">4. Export</h2>
+      <p class="muted">Take your song into GarageBand: a MIDI file with a track per part, plus a WAV of every part and the full mix, all lined up at bar 1.</p>
+      <div class="row">
+        <button id="garageband" class="primary" disabled>⬇ GarageBand pack (.zip)</button>
+        <button id="midi" disabled>⬇ MIDI only</button>
+        <span id="exportStatus" class="muted" aria-live="polite"></span>
       </div>
     </section>
   </main>

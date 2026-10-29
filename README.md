@@ -23,7 +23,7 @@ You can also open an existing audio file instead of recording.
 3. **Notes** (`src/notes.js`): pitches are median-smoothed, corrected for the singer's overall tuning offset (most people aren't at A440), rounded to semitones and grouped into notes. Very short blips and glides are absorbed. Notes can optionally be snapped to an eighth-note grid at a chosen tempo.
 4. **Arrangement** (`src/notes.js`): the key is estimated with Krumhansl-Kessler profiles. The bass either follows the melody an octave or two down, or plays the root of a diatonic chord chosen to fit each melody note. The keys play the melody, optionally on top of that chord.
 5. **Playback**: the bass is either a sampled electric or upright bass (`src/sampler.js`, one recorded note per semitone from A1 to A3) or an analog-style synth bass (`src/synth.js`). Keys are an electric-piano style synth. Everything is scheduled with Web Audio, and the original recording can be played alongside.
-6. **Export** (`src/midi.js`): download melody, bass and keys as a 3-track MIDI file for a DAW.
+6. **Export** (`src/export.js`, `src/midi.js`): **GarageBand pack** downloads a zip with a MIDI file (one track per part, GM programs, tempo and 4/4), a 24-bit WAV stem of every part rendered offline with the same sounds you hear, a full mix, and a short how-to for GarageBand on Mac and iOS. Every file starts at bar 1 and is padded to whole bars, so they line up when dropped in. **MIDI only** downloads just the .mid. New instruments or recorded tracks get exported by adding an entry to `songTracks()` in `src/app.js` (note tracks: `{ name, notes, program, play }`, drum tracks add `drums: true`, audio: `{ name, audio: { buffer, offset } }`).
 
 ## Tests
 

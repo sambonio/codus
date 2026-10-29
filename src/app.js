@@ -3,6 +3,7 @@ import { segmentNotes, quantizeNotes, arrange, detectKey, midiToName } from './n
 import { playSynthBassNote, playKeysNote, playParts } from './synth.js';
 import { SAMPLED_BASSES, loadSampledBass, sampledBassPlayer } from './sampler.js';
 import { writeMidi } from './midi.js';
+import { buildGarageBandPack, download } from './export.js';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -10,6 +11,7 @@ const ui = {
   bassMode: $('bassMode'), bassSound: $('bassSound'), keysMode: $('keysMode'), quantize: $('quantize'),
   bpm: $('bpm'), transpose: $('transpose'), summary: $('summary'), roll: $('roll'),
   play: $('play'), stop: $('stop'), loop: $('loop'), midi: $('midi'),
+  garageband: $('garageband'), exportStatus: $('exportStatus'),
   playBass: $('playBass'), playKeys: $('playKeys'), playVoice: $('playVoice'),
 };
 
@@ -162,6 +164,7 @@ function clampBpm() {
 function setPlayable(on) {
   ui.play.disabled = !on;
   ui.midi.disabled = !on;
+  ui.garageband.disabled = !on;
 }
 
 for (const el of [ui.bassMode, ui.keysMode, ui.quantize, ui.bpm, ui.transpose]) {
@@ -254,25 +257,53 @@ ui.bassSound.addEventListener('change', () => {
 });
 ui.stop.addEventListener('click', stopPlayback);
 
-// ---------- MIDI export ----------
+// ---------- Export ----------
 
 // General MIDI programs (0-based): Acoustic Bass, Electric Bass (finger), Synth Bass 1.
 const GM_BASS_PROGRAMS = { upright: 32, electric: 33, synth: 38 };
 
-ui.midi.addEventListener('click', () => {
+/**
+ * Every part of the song, in the shape export.js takes. New instruments or
+ * recorded tracks only need to add an entry here to be exported.
+ */
+async function songTracks(a, { sound = false } = {}) {
+  const tracks = [
+    { name: 'Melody', notes: a.melody, program: 0, stem: false },
+    {
+      name: 'Bass', notes: a.bass, program: GM_BASS_PROGRAMS[ui.bassSound.value] ?? 33,
+      play: sound ? await bassInstrument(getCtx()).catch(() => playSynthBassNote) : null, gain: 1,
+    },
+    { name: 'Keys', notes: a.keys, program: 4, play: playKeysNote, gain: 0.9 }, // Electric Piano 1
+  ];
+  if (state.recording) tracks.push({ name: 'Voice', audio: { buffer: state.recording, offset: a.origin } });
+  return tracks;
+}
+
+ui.midi.addEventListener('click', async () => {
   const a = state.arrangement;
   if (!a) return;
-  const bytes = writeMidi([
-    { name: 'Melody', notes: a.melody, program: 0 },
-    { name: 'Bass', notes: a.bass, program: GM_BASS_PROGRAMS[ui.bassSound.value] ?? 33 },
-    { name: 'Keys', notes: a.keys, program: 4 },   // Electric Piano 1
-  ], { bpm: a.bpm });
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'hummagroove.mid';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const tracks = (await songTracks(a)).filter((t) => t.notes);
+  download(writeMidi(tracks, { bpm: a.bpm }), 'hummagroove.mid', 'audio/midi');
+});
+
+ui.garageband.addEventListener('click', async () => {
+  const a = state.arrangement;
+  if (!a) return;
+  ui.garageband.disabled = true;
+  const status = (text) => (ui.exportStatus.textContent = text);
+  try {
+    status('Loading instruments…');
+    const tracks = await songTracks(a, { sound: true });
+    const zip = await buildGarageBandPack({
+      title: 'Hummagroove', bpm: a.bpm, tracks, sampleRate: getCtx().sampleRate, onProgress: status,
+    });
+    download(zip, 'hummagroove-garageband.zip', 'application/zip');
+    status('Done. Unzip it and drag the files into GarageBand at bar 1.');
+  } catch (err) {
+    status(`Export failed: ${err.message}`);
+  } finally {
+    ui.garageband.disabled = !state.arrangement;
+  }
 });
 
 // ---------- Piano roll ----------
