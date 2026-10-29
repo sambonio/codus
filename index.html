@@ -14,7 +14,9 @@
     </header>
 
     <section class="panel" aria-labelledby="capture-heading">
-      <h2 id="capture-heading">1. Capture</h2>
+      <h2 id="capture-heading">1. Hum your song</h2>
+      <p class="muted">Hum each part of your song as its own section, like a verse and a chorus.</p>
+      <div id="sections" class="chips sections" aria-label="Sections"></div>
       <div class="row">
         <button id="record" class="primary">● Record</button>
         <label class="file-button">
@@ -24,10 +26,19 @@
         <span id="timer" class="muted" aria-live="polite"></span>
       </div>
       <canvas id="meter" width="600" height="8" aria-hidden="true"></canvas>
+      <div class="row section-edit">
+        <label>Section name <input id="sectionName" type="text" maxlength="24"></label>
+        <button id="deleteSection" type="button">Delete section</button>
+      </div>
     </section>
 
     <section class="panel" aria-labelledby="arrange-heading">
       <h2 id="arrange-heading">2. Arrange</h2>
+      <div class="order-row">
+        <span class="muted">Song order</span>
+        <ol id="order" class="order" aria-label="Song order"></ol>
+        <select id="addToOrder" aria-label="Add a section to the song"></select>
+      </div>
       <div class="controls">
         <label>Bass line
           <select id="bassMode">
@@ -71,7 +82,9 @@
     </section>
 
     <section class="panel" aria-labelledby="play-heading">
-      <h2 id="play-heading">4. Play</h2>
+      <h2 id="play-heading">4. Mix and play</h2>
+      <p class="muted">Set each instrument's level and position before you take the song into GarageBand.</p>
+      <canvas id="timeline" width="900" height="120" aria-label="Timeline with a lane for each instrument"></canvas>
       <div id="tracks" class="tracks" aria-label="Tracks"></div>
       <div class="row">
         <button id="play" class="primary" disabled>▶ Play</button>

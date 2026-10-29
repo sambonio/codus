@@ -122,9 +122,10 @@ export function roomImpulse(ctx, { seconds = 1.6, preDelay = 0.012 } = {}) {
 
 /**
  * Schedule parts on an AudioContext. Each part is { id, notes, play, gain,
- * reverb?, release? }: reverb is the send level into a shared room, and
- * release(bus) frees anything the instrument built for that part.
- * Returns { startTime, stop(), setGain(id, gain) }.
+ * pan?, reverb?, release? }: pan is -1 (left) to 1 (right), reverb is the
+ * send level into a shared room, and release(bus) frees anything the
+ * instrument built for that part.
+ * Returns { startTime, stop(), setGain(id, gain), setPan(id, pan) }.
  */
 export function playParts(ctx, parts, { offset = 0.1 } = {}) {
   const master = ctx.createGain();
@@ -153,11 +154,15 @@ export function playParts(ctx, parts, { offset = 0.1 } = {}) {
 
   const t0 = ctx.currentTime + offset;
   const buses = new Map();
+  const panners = new Map();
   for (const part of parts) {
     const bus = ctx.createGain();
     bus.gain.value = part.gain ?? 1;
-    bus.connect(master);
+    const panner = ctx.createStereoPanner();
+    panner.pan.value = part.pan ?? 0;
+    bus.connect(panner).connect(master);
     buses.set(part.id, bus);
+    panners.set(part.id, panner);
     if (part.reverb) {
       const send = ctx.createGain();
       send.gain.value = part.reverb;
@@ -171,6 +176,9 @@ export function playParts(ctx, parts, { offset = 0.1 } = {}) {
     startTime: t0,
     setGain(id, gain) {
       buses.get(id)?.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
+    },
+    setPan(id, pan) {
+      panners.get(id)?.pan.setTargetAtTime(pan, ctx.currentTime, 0.02);
     },
     stop() {
       master.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
