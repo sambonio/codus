@@ -9,6 +9,7 @@
   --bass: #1971c2;
   --keys: #e8590c;
   --grid: #eeeae2;
+  --take: #2f9e44;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --bass: #4dabf7;
     --keys: #ff922b;
     --grid: #2a2925;
+    --take: #69db7c;
   }
 }
 
@@ -72,7 +74,7 @@ button.recording { animation: pulse 1s infinite alternate; }
 .file-button input { display: none; }
 
 canvas { display: block; width: 100%; }
-#meter { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--grid); }
+#meter, #takeMeter { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--grid); }
 #roll { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 
 .legend { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 0.9rem; }
@@ -80,3 +82,12 @@ canvas { display: block; width: 100%; }
 .swatch.melody { background: var(--melody); }
 .swatch.bass { background: var(--bass); }
 .swatch.keys { background: var(--keys); }
+
+.take { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
+.take .row { gap: 8px 12px; font-size: 0.9rem; }
+.take input.take-name { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; width: 10em; }
+.take input.take-name:hover, .take input.take-name:focus { border-color: var(--border); }
+.take input[type="range"] { width: 6em; }
+.take button { padding: 2px 10px; }
+.take canvas { height: 48px; margin-top: 6px; border: 1px solid var(--border); border-radius: 6px; }
+.take.is-muted canvas { opacity: 0.4; }

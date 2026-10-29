@@ -24,6 +24,7 @@ You can also open an existing audio file instead of recording.
 4. **Arrangement** (`src/notes.js`): the key is estimated with Krumhansl-Kessler profiles. The bass either follows the melody an octave or two down, or plays the root of a diatonic chord chosen to fit each melody note. The keys play the melody, optionally on top of that chord.
 5. **Playback**: the bass is either a sampled electric or upright bass (`src/sampler.js`, one recorded note per semitone from A1 to A3) or an analog-style synth bass (`src/synth.js`). Keys are an electric-piano style synth. Everything is scheduled with Web Audio, and the original recording can be played alongside.
 6. **Export** (`src/midi.js`): download melody, bass and keys as a 3-track MIDI file for a DAW.
+7. **Record your own** (`src/takes.js`): record drums, guitar, vocals or anything else from the mic while the song plays, after a one-bar count-in with an optional click. Audio is captured by an `AudioWorklet` (`src/capture-worklet.js`) stamped with the audio clock, so each take is placed on the song timeline exactly, minus the round-trip latency the browser reports. Takes play back with the bass and keys, and each has mute, volume, a timing nudge in ms, and a WAV download (`src/wav.js`) padded to start at song time 0 so it lines up when dropped at the start of a GarageBand or other DAW project. Use headphones so the backing track doesn't leak into the mic.
 
 ## Tests
 
