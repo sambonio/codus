@@ -52,20 +52,34 @@ function assignChannels(tracks) {
   let next = 0;
   return tracks.map((t) => {
     if (t.drums) return DRUM_CHANNEL;
-    if (next === DRUM_CHANNEL) next++;
+    if (next % 16 === DRUM_CHANNEL) next++;
     return next++ % 16;
   });
 }
 
-/** tracks: [{ name, notes, program, drums }] -> Uint8Array of a .mid file in 4/4. */
-export function writeMidi(tracks, { bpm = 120 } = {}) {
+/**
+ * tracks: [{ name, notes, program, drums }] -> Uint8Array of a .mid file in 4/4.
+ * markers: [{ name, start }] (seconds) become marker events, e.g. song sections.
+ */
+export function writeMidi(tracks, { bpm = 120, markers = [] } = {}) {
   const usPerBeat = Math.round(60_000_000 / bpm);
-  const tempoTrack = chunk('MTrk', [
-    0x00, 0xff, 0x03, 0x05, ...[...'Tempo'].map((c) => c.charCodeAt(0)),
+  const text = (type, s) => {
+    const bytes = [...new TextEncoder().encode(s)];
+    return [0xff, type, ...varLen(bytes.length), ...bytes];
+  };
+  const tempoData = [
+    0x00, ...text(0x03, 'Tempo'),
     0x00, 0xff, 0x58, 0x04, 0x04, 0x02, 0x18, 0x08, // 4/4
     0x00, 0xff, 0x51, 0x03, (usPerBeat >> 16) & 0xff, (usPerBeat >> 8) & 0xff, usPerBeat & 0xff,
-    0x00, 0xff, 0x2f, 0x00,
-  ]);
+  ];
+  const ticksPerSecond = (PPQ * bpm) / 60;
+  let last = 0;
+  for (const m of [...markers].sort((a, b) => a.start - b.start)) {
+    const tick = Math.max(last, Math.round(m.start * ticksPerSecond));
+    tempoData.push(...varLen(tick - last), ...text(0x06, m.name));
+    last = tick;
+  }
+  const tempoTrack = chunk('MTrk', [...tempoData, 0x00, 0xff, 0x2f, 0x00]);
   const header = chunk('MThd', [0x00, 0x01, 0x00, tracks.length + 1, (PPQ >> 8) & 0xff, PPQ & 0xff]);
   const channels = assignChannels(tracks);
   const body = tracks.map((t, i) => trackChunk(t.name, t.notes, channels[i], t.program ?? 0, bpm));

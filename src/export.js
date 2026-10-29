@@ -1,6 +1,7 @@
 // GarageBand export: a MIDI file of every note-based part plus WAV stems,
 // all starting at bar 1, zipped together with a short how-to.
 import { writeMidi } from './midi.js';
+import { playParts, roomImpulse } from './synth.js';
 
 // ---------- WAV ----------
 
@@ -135,48 +136,110 @@ export function makeZip(files, { date = new Date() } = {}) {
 
 // ---------- Song layout ----------
 
-/** Length in seconds, rounded up to whole 4/4 bars so stems loop cleanly. */
-export function songLength(tracks, bpm, { tail = 0.5 } = {}) {
-  let end = 0;
+/**
+ * A track to export:
+ *   { name, notes?, program?, drums?, midi = true,      // MIDI part
+ *     play?, release?, volume = 1, pan = 0, reverb = 0, // how it sounds
+ *     clips?: [{ buffer, offset = 0, at = 0, duration? }], // recorded audio
+ *     mixGain = volume, stem = true }
+ * `play` is a loaded instrument's play(ctx, out, note) with its samples
+ * already prepared. Clips place an AudioBuffer at song time `at`, starting
+ * `offset` seconds into it. `mixGain` is the level in the full mix (0 when
+ * muted or soloed out); stems always use `volume`.
+ */
+
+/** Seconds per 4/4 bar. */
+export const barLength = (bpm) => (4 * 60) / bpm;
+
+function clipEnd(clip) {
+  const available = clip.buffer.duration - (clip.offset ?? 0);
+  return (clip.at ?? 0) + Math.min(available, clip.duration ?? available);
+}
+
+/** Length in seconds, rounded up to whole bars so stems line up and loop cleanly. */
+export function packLength(tracks, bpm, { markers = [], tail = 0.5 } = {}) {
+  let end = Math.max(0, ...markers.map((m) => m.end ?? m.start));
   for (const t of tracks) {
-    for (const n of t.notes ?? []) end = Math.max(end, n.start + n.duration);
-    if (t.audio) end = Math.max(end, (t.audio.at ?? 0) + t.audio.buffer.duration - (t.audio.offset ?? 0));
+    for (const n of t.notes ?? []) end = Math.max(end, n.start + n.duration + tail);
+    for (const c of t.clips ?? []) end = Math.max(end, clipEnd(c));
   }
-  const bar = (4 * 60) / bpm;
-  return Math.max(1, Math.ceil((end + tail) / bar)) * bar;
+  const bar = barLength(bpm);
+  return Math.max(1, Math.ceil(end / bar - 1e-6)) * bar;
 }
 
 /** Turn a track name into a safe, readable file name. */
 export function fileName(name) {
-  return name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Track';
+  return name.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim() || 'Track';
 }
+
+/** Give each name a unique, numbered file name: "Strings", "Strings 2". */
+export function uniqueNames(names) {
+  const used = new Set();
+  return names.map((name) => {
+    const base = fileName(name);
+    let unique = base;
+    for (let n = 2; used.has(unique.toLowerCase()); n++) unique = `${base} ${n}`;
+    used.add(unique.toLowerCase());
+    return unique;
+  });
+}
+
+const sounds = (t) => (t.play && t.notes?.length) || t.clips?.length;
 
 // ---------- Rendering (browser only) ----------
 
-/**
- * Render tracks offline into one AudioBuffer. A track sounds if it has
- * `play` (a note player, as in synth.js / sampler.js) with `notes`, or
- * `audio`: { buffer, offset = 0 (seconds into the buffer), at = 0 (song time) }.
- */
-export async function renderTracks(tracks, { sampleRate, length, channels = 2 }) {
-  const ctx = new OfflineAudioContext(channels, Math.ceil(length * sampleRate), sampleRate);
-  const master = ctx.createGain();
-  master.gain.value = 0.9;
-  const compressor = ctx.createDynamicsCompressor();
-  master.connect(compressor).connect(ctx.destination);
-  for (const t of tracks) {
-    const bus = ctx.createGain();
-    bus.gain.value = t.gain ?? 1;
-    bus.connect(master);
-    if (t.play) for (const note of t.notes ?? []) t.play(ctx, bus, note);
-    if (t.audio) {
-      const source = ctx.createBufferSource();
-      source.buffer = t.audio.buffer;
-      source.connect(bus);
-      source.start(t.audio.at ?? 0, t.audio.offset ?? 0);
-    }
+function scheduleClips(ctx, clips, out) {
+  for (const clip of clips ?? []) {
+    const source = ctx.createBufferSource();
+    source.buffer = clip.buffer;
+    source.connect(out);
+    source.start(clip.at ?? 0, clip.offset ?? 0, clip.duration);
   }
-  return ctx.startRendering();
+}
+
+/**
+ * Render one track on its own: its level, pan and room reverb, but none of
+ * the mix bus processing, so the stems can be mixed afresh in GarageBand.
+ */
+export async function renderStem(track, { sampleRate, length }) {
+  const ctx = new OfflineAudioContext(2, Math.ceil(length * sampleRate), sampleRate);
+  const bus = ctx.createGain();
+  bus.gain.value = track.volume ?? 1;
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = track.pan ?? 0;
+  bus.connect(panner).connect(ctx.destination);
+  if (track.reverb) {
+    const send = ctx.createGain();
+    send.gain.value = track.reverb;
+    const room = ctx.createConvolver();
+    room.buffer = roomImpulse(ctx);
+    bus.connect(send).connect(room).connect(panner);
+  }
+  if (track.play) for (const note of track.notes ?? []) track.play(ctx, bus, note);
+  scheduleClips(ctx, track.clips, bus);
+  const buffer = await ctx.startRendering();
+  track.release?.(bus);
+  return buffer;
+}
+
+/** Render the whole song exactly as the app plays it, mix bus included. */
+export async function renderMix(tracks, { sampleRate, length }) {
+  const ctx = new OfflineAudioContext(2, Math.ceil(length * sampleRate), sampleRate);
+  const parts = tracks.filter((t) => t.play && t.notes?.length).map((t, i) => ({
+    id: i, notes: t.notes, play: t.play, release: t.release,
+    gain: t.mixGain ?? t.volume ?? 1, pan: t.pan ?? 0, reverb: t.reverb ?? 0,
+  }));
+  const handle = playParts(ctx, parts, { offset: 0 });
+  for (const t of tracks) {
+    if (!t.clips?.length) continue;
+    const gain = ctx.createGain();
+    gain.gain.value = t.mixGain ?? t.volume ?? 1;
+    gain.connect(ctx.destination);
+    scheduleClips(ctx, t.clips, gain);
+  }
+  const buffer = await ctx.startRendering();
+  handle.stop();
+  return buffer;
 }
 
 function bufferChannels(buffer) {
@@ -184,50 +247,58 @@ function bufferChannels(buffer) {
 }
 
 /**
- * Build the GarageBand pack as zip bytes.
- * tracks: [{ name, notes?, program?, drums?, play?, gain?, audio?, stem = true }]
- * Note tracks go into the MIDI file (with their GM program); every track that
- * makes sound also gets its own WAV stem, and there's a full mix too.
+ * Build the GarageBand pack as zip bytes: one MIDI file with a track per
+ * note part (and the song's sections as markers), a WAV stem per track that
+ * makes sound, the full mix, and a how-to.
  */
-export async function buildGarageBandPack({ title = 'Hummagroove', bpm, tracks, sampleRate = 44100, onProgress = () => {} }) {
-  const length = songLength(tracks, bpm);
+export async function buildGarageBandPack({
+  title = 'Hummagroove', bpm, tracks, markers = [], sampleRate = 44100, onProgress = () => {},
+}) {
+  const length = packLength(tracks, bpm, { markers });
   const files = [];
-  const midiTracks = tracks.filter((t) => t.notes?.length);
-  if (midiTracks.length) files.push({ name: `${title}.mid`, data: writeMidi(midiTracks, { bpm }) });
+  const midiTracks = tracks.filter((t) => t.midi !== false && t.notes?.length);
+  if (midiTracks.length) files.push({ name: `${title}.mid`, data: writeMidi(midiTracks, { bpm, markers }) });
 
-  const audible = tracks.filter((t) => t.stem !== false && ((t.play && t.notes?.length) || t.audio));
-  const used = new Set();
-  for (const [i, t] of audible.entries()) {
-    onProgress(`Rendering ${t.name} (${i + 1} of ${audible.length})…`);
-    let name = fileName(t.name);
-    for (let n = 2; used.has(name); n++) name = `${fileName(t.name)} ${n}`;
-    used.add(name);
-    const buffer = await renderTracks([t], { sampleRate, length });
-    files.push({ name: `Stems/${name}.wav`, data: encodeWav(bufferChannels(buffer), sampleRate) });
+  const stems = tracks.filter((t) => t.stem !== false && sounds(t));
+  const names = uniqueNames(stems.map((t) => t.name));
+  for (const [i, t] of stems.entries()) {
+    onProgress(`Rendering ${t.name} (${i + 1} of ${stems.length})…`);
+    const buffer = await renderStem(t, { sampleRate, length });
+    files.push({ name: `Stems/${String(i + 1).padStart(2, '0')} ${names[i]}.wav`, data: encodeWav(bufferChannels(buffer), sampleRate) });
   }
-  if (audible.length > 1) {
+  if (stems.length) {
     onProgress('Rendering the full mix…');
-    const mix = await renderTracks(audible, { sampleRate, length });
+    const mix = await renderMix(stems, { sampleRate, length });
     files.push({ name: `${title} mix.wav`, data: encodeWav(bufferChannels(mix), sampleRate) });
   }
-  files.push({ name: 'How to open in GarageBand.txt', data: howTo({ title, bpm, length, files }) });
+  files.push({ name: 'How to open in GarageBand.txt', data: howTo({ title, bpm, length, files, markers }) });
   return makeZip(files);
 }
 
-function howTo({ title, bpm, length, files }) {
-  const bars = Math.round(length / ((4 * 60) / bpm));
+/** "Verse: bar 1", using the 4/4 bar the section starts on. */
+export function sectionBars(markers, bpm) {
+  const bar = barLength(bpm);
+  return markers.map((m) => `${m.name}: bar ${Math.round(m.start / bar) + 1}`);
+}
+
+function howTo({ title, bpm, length, files, markers }) {
+  const bars = Math.round(length / barLength(bpm));
   return [
     `${title}: exported from Hummagroove`,
     `Tempo ${bpm} BPM, 4/4, ${bars} bars. Every file starts at bar 1.`,
     '',
     'Files:',
     ...files.map((f) => `  ${f.name}`),
+    ...(markers.length ? ['', 'Sections:', ...sectionBars(markers, bpm).map((s) => `  ${s}`)] : []),
     '',
     'GarageBand on Mac:',
     `  1. Create an Empty Project and set the tempo to ${bpm} BPM.`,
     `  2. Drag ${title}.mid into the empty area below the tracks. GarageBand`,
     '     makes one software instrument track per part, ready to re-voice.',
-    '  3. Drag the WAV files from Stems onto empty space and line each up at bar 1.',
+    '  3. Select all the WAV files in Stems and drag them in together at bar 1.',
+    '     Each lands on its own audio track, ready to mix.',
+    '  4. Use the stems for the sound you made here, or the MIDI tracks to swap',
+    '     in GarageBand instruments. Mute whichever you are not using.',
     '',
     'GarageBand on iPhone or iPad:',
     '  1. Unzip this file in the Files app (tap it).',

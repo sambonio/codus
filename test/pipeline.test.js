@@ -146,7 +146,7 @@ test('legato melody with background noise still segments cleanly', () => {
 
 // ---------- GarageBand export ----------
 
-import { encodeWav, makeZip, songLength, fileName } from '../src/export.js';
+import { encodeWav, makeZip, packLength, fileName, uniqueNames, sectionBars } from '../src/export.js';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -210,11 +210,26 @@ test('zip writer produces an archive that unzip accepts', () => {
   assert.equal(readFileSync(join(dir, 'How to open.txt'), 'utf8'), 'hello');
 });
 
-test('song length rounds up to whole bars and counts audio tracks', () => {
+test('pack length rounds up to whole bars and counts clips and sections', () => {
   const bar = 4 * 60 / 120;
-  assert.equal(songLength([{ notes: [{ start: 0, duration: 1.4 }] }], 120), bar);
-  assert.equal(songLength([{ notes: [{ start: 0, duration: 1.8 }] }], 120), 2 * bar);
-  const audio = { buffer: { duration: 5 }, offset: 1 };
-  assert.equal(songLength([{ audio }], 120), 3 * bar);
-  assert.equal(fileName('Bass / Synth?'), 'Bass  Synth');
+  assert.equal(packLength([{ notes: [{ start: 0, duration: 1.4 }] }], 120), bar);
+  assert.equal(packLength([{ notes: [{ start: 0, duration: 1.8 }] }], 120), 2 * bar);
+  const clip = { buffer: { duration: 5 }, offset: 1, at: 2 };
+  assert.equal(packLength([{ clips: [clip] }], 120), 3 * bar);
+  assert.equal(packLength([{ clips: [{ ...clip, duration: 1 }] }], 120), 2 * bar);
+  assert.equal(packLength([], 120, { markers: [{ start: 0, end: 4 * bar }] }), 4 * bar);
+});
+
+test('stem names are safe and unique', () => {
+  assert.equal(fileName('Bass / Synth?'), 'Bass Synth');
+  assert.deepEqual(uniqueNames(['Strings', 'Keys', 'strings', 'Strings']), ['Strings', 'Keys', 'strings 2', 'Strings 3']);
+});
+
+test('sections are listed by the bar they start on, and written as MIDI markers', () => {
+  const markers = [{ name: 'Verse', start: 0, end: 8 }, { name: 'Chorus', start: 8, end: 16 }];
+  assert.deepEqual(sectionBars(markers, 120), ['Verse: bar 1', 'Chorus: bar 5']);
+  const hex = Buffer.from(writeMidi([], { bpm: 120, markers })).toString('hex');
+  // Chorus marker 8 s = 16 beats = 7680 ticks after Verse (varLen 0xbc 0x00).
+  assert.ok(hex.includes('00ff0605' + Buffer.from('Verse').toString('hex')));
+  assert.ok(hex.includes('bc00ff0606' + Buffer.from('Chorus').toString('hex')));
 });
