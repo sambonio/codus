@@ -94,15 +94,62 @@ export function playKeysNote(ctx, out, { midi, start, duration, velocity = 1 }) 
   }
 }
 
+const impulses = new WeakMap();
+
 /**
- * Schedule parts on an AudioContext. Each part is { id, notes, play, gain }.
+ * A synthetic room: stereo noise with a short pre-delay, decaying
+ * exponentially and getting darker as it fades, like a mid-sized studio.
+ */
+export function roomImpulse(ctx, { seconds = 1.6, preDelay = 0.012 } = {}) {
+  if (impulses.has(ctx)) return impulses.get(ctx);
+  const rate = ctx.sampleRate;
+  const length = Math.floor(seconds * rate);
+  const buffer = ctx.createBuffer(2, length, rate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buffer.getChannelData(ch);
+    let lp = 0;
+    for (let i = Math.floor(preDelay * rate); i < length; i++) {
+      const t = i / rate;
+      // One-pole low-pass whose cutoff falls over time: highs die first.
+      const coef = 0.6 * Math.exp(-t * 2.2) + 0.05;
+      lp += coef * (Math.random() * 2 - 1 - lp);
+      data[i] = lp * Math.exp((-6.9 * t) / seconds);
+    }
+  }
+  impulses.set(ctx, buffer);
+  return buffer;
+}
+
+/**
+ * Schedule parts on an AudioContext. Each part is { id, notes, play, gain,
+ * reverb?, release? }: reverb is the send level into a shared room, and
+ * release(bus) frees anything the instrument built for that part.
  * Returns { startTime, stop(), setGain(id, gain) }.
  */
 export function playParts(ctx, parts, { offset = 0.1 } = {}) {
   const master = ctx.createGain();
   master.gain.value = 0.9;
+  // Gentle glue compression on the mix, like a mastering bus.
   const compressor = ctx.createDynamicsCompressor();
-  master.connect(compressor).connect(ctx.destination);
+  compressor.threshold.value = -18;
+  compressor.ratio.value = 2.5;
+  compressor.attack.value = 0.02;
+  compressor.release.value = 0.25;
+  compressor.knee.value = 12;
+  const makeup = ctx.createGain();
+  makeup.gain.value = 1.3;
+  // Brick-wall-ish limiter so a dense chord can never clip the output.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -4;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.12;
+  master.connect(compressor).connect(makeup).connect(limiter).connect(ctx.destination);
+
+  const room = ctx.createConvolver();
+  room.buffer = roomImpulse(ctx);
+  room.connect(master);
 
   const t0 = ctx.currentTime + offset;
   const buses = new Map();
@@ -111,6 +158,11 @@ export function playParts(ctx, parts, { offset = 0.1 } = {}) {
     bus.gain.value = part.gain ?? 1;
     bus.connect(master);
     buses.set(part.id, bus);
+    if (part.reverb) {
+      const send = ctx.createGain();
+      send.gain.value = part.reverb;
+      bus.connect(send).connect(room);
+    }
     for (const note of part.notes) {
       part.play(ctx, bus, { ...note, start: t0 + note.start });
     }
@@ -122,7 +174,10 @@ export function playParts(ctx, parts, { offset = 0.1 } = {}) {
     },
     stop() {
       master.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
-      setTimeout(() => master.disconnect(), 200);
+      setTimeout(() => {
+        master.disconnect();
+        for (const part of parts) part.release?.(buses.get(part.id));
+      }, 200);
     },
   };
 }

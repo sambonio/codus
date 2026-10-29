@@ -39,7 +39,7 @@ function trimOnset(buffer) {
  * Load a multi-sampled instrument from `baseUrl` (a folder containing
  * manifest.json). Returns { name, credit, play(ctx, out, note) }.
  */
-export async function loadMultisampler(ctx, baseUrl, { level = 1 } = {}) {
+export async function loadMultisampler(ctx, baseUrl, { level = 1, reverb = 0 } = {}) {
   const base = new URL(baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`, location.href);
   const res = await fetch(new URL('manifest.json', base));
   if (!res.ok) throw new Error(`HTTP ${res.status} loading ${base}manifest.json`);
@@ -61,6 +61,7 @@ export async function loadMultisampler(ctx, baseUrl, { level = 1 } = {}) {
   return {
     name: manifest.name,
     credit: manifest.credit,
+    reverb,
     play(ctx, out, { midi, start, duration, velocity = 0.8 }) {
       const zone = pickZone(zones, midi, toMidiVelocity(velocity));
       if (!zone) return;

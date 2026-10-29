@@ -186,9 +186,30 @@ function renderTracks() {
     const select = document.createElement('select');
     select.setAttribute('aria-label', `${track.name} instrument`);
     for (const inst of instrumentsFor(track.role)) select.add(new Option(inst.name, inst.id, false, inst.id === track.instrument));
+    // Extra settings some instruments offer, like the organ's Leslie speed.
+    const controls = document.createElement('span');
+    controls.className = 'track-controls';
+    const showControls = async () => {
+      controls.replaceChildren();
+      let instrument;
+      try {
+        instrument = await loadInstrument(getCtx(), track.instrument);
+      } catch {
+        return;
+      }
+      if (select.value !== track.instrument) return; // changed while loading
+      for (const control of instrument.controls ?? []) {
+        const label = document.createElement('label');
+        const picker = document.createElement('select');
+        for (const [value, text] of control.options) picker.add(new Option(text, value, false, instrument[control.id] === value));
+        picker.addEventListener('change', () => { instrument[control.id] = picker.value; });
+        label.append(`${control.label} `, picker);
+        controls.append(label);
+      }
+    };
     select.addEventListener('change', () => {
       track.instrument = select.value;
-      loadInstrument(getCtx(), track.instrument).catch(() => {});
+      showControls();
     });
 
     const volume = document.createElement('input');
@@ -213,7 +234,8 @@ function renderTracks() {
     });
     mute.append(muteBox, ' Mute');
 
-    row.append(name, select, volume, mute);
+    row.append(name, select, controls, volume, mute);
+    showControls();
     ui.tracks.append(row);
   }
 }
@@ -244,7 +266,10 @@ async function startPlayback() {
       failed.push(`${getInstrument(track.instrument)?.name ?? track.instrument} (${err.message})`);
       return null;
     }
-    return { id: track.id, notes: track.notes, play: instrument.play, gain: track.muted ? 0 : track.volume };
+    return {
+      id: track.id, notes: track.notes, play: instrument.play, release: instrument.release,
+      gain: track.muted ? 0 : track.volume, reverb: instrument.reverb ?? 0,
+    };
   }));
   ui.play.textContent = '▶ Play';
   if (failed.length) ui.summary.textContent = `Couldn't load ${failed.join(', ')}. Check your connection and press Play again.`;

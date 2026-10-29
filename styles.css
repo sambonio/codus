@@ -86,3 +86,4 @@ canvas { display: block; width: 100%; }
 .track { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
 .track-name { font-weight: 600; min-width: 3.5em; }
 .track input[type="range"] { width: 120px; accent-color: var(--accent); }
+.track-controls:empty { display: none; }

@@ -10,7 +10,7 @@
 
 export const DEFAULT_TRACKS = [
   { id: 'bass', name: 'Bass', role: 'bass', instrument: 'electric-bass', volume: 0.9, muted: false },
-  { id: 'keys', name: 'Keys', role: 'keys', instrument: 'electric-piano', volume: 0.8, muted: false },
+  { id: 'keys', name: 'Keys', role: 'keys', instrument: 'organ-gospel', volume: 0.8, muted: false },
 ];
 
 export function buildSong({ melody, key, bpm, origin, parts }, settings = {}) {
