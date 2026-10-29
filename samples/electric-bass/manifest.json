@@ -1,0 +1,339 @@
+{
+ "name": "Electric bass",
+ "credit": "Swagbass by Karoryfer Lecolds (D. Smolken): Ibanez BTB-400QM, flatwound strings, neck pickup, recorded direct.",
+ "license": "CC0 1.0",
+ "source": "https://github.com/sfzinstruments/karoryfer.swagbass",
+ "release": 0.05,
+ "zones": [
+  {
+   "key": 30,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": 10,
+   "files": [
+    "30-p-1.mp3",
+    "30-p-2.mp3"
+   ]
+  },
+  {
+   "key": 30,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": 6,
+   "files": [
+    "30-f-1.mp3",
+    "30-f-2.mp3"
+   ]
+  },
+  {
+   "key": 30,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -4,
+   "files": [
+    "30-fff-1.mp3",
+    "30-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 33,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": -4,
+   "files": [
+    "33-p-1.mp3",
+    "33-p-2.mp3"
+   ]
+  },
+  {
+   "key": 33,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -6,
+   "files": [
+    "33-f-1.mp3",
+    "33-f-2.mp3"
+   ]
+  },
+  {
+   "key": 33,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -9,
+   "files": [
+    "33-fff-1.mp3",
+    "33-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 36,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": -5,
+   "files": [
+    "36-p-1.mp3",
+    "36-p-2.mp3"
+   ]
+  },
+  {
+   "key": 36,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -6,
+   "files": [
+    "36-f-1.mp3",
+    "36-f-2.mp3"
+   ]
+  },
+  {
+   "key": 36,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -12,
+   "files": [
+    "36-fff-1.mp3",
+    "36-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 39,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": -4,
+   "files": [
+    "39-p-1.mp3",
+    "39-p-2.mp3"
+   ]
+  },
+  {
+   "key": 39,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -6,
+   "files": [
+    "39-f-1.mp3",
+    "39-f-2.mp3"
+   ]
+  },
+  {
+   "key": 39,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -7,
+   "files": [
+    "39-fff-1.mp3",
+    "39-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 42,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": 6,
+   "files": [
+    "42-p-1.mp3",
+    "42-p-2.mp3"
+   ]
+  },
+  {
+   "key": 42,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": 3,
+   "files": [
+    "42-f-1.mp3",
+    "42-f-2.mp3"
+   ]
+  },
+  {
+   "key": 42,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": 3,
+   "files": [
+    "42-fff-1.mp3",
+    "42-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 45,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": 0,
+   "files": [
+    "45-p-1.mp3",
+    "45-p-2.mp3"
+   ]
+  },
+  {
+   "key": 45,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -6,
+   "files": [
+    "45-f-1.mp3",
+    "45-f-2.mp3"
+   ]
+  },
+  {
+   "key": 45,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -7,
+   "files": [
+    "45-fff-1.mp3",
+    "45-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 48,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": -2,
+   "files": [
+    "48-p-1.mp3",
+    "48-p-2.mp3"
+   ]
+  },
+  {
+   "key": 48,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -4,
+   "files": [
+    "48-f-1.mp3",
+    "48-f-2.mp3"
+   ]
+  },
+  {
+   "key": 48,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -4,
+   "files": [
+    "48-fff-1.mp3",
+    "48-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 51,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": -3,
+   "files": [
+    "51-p-1.mp3",
+    "51-p-2.mp3"
+   ]
+  },
+  {
+   "key": 51,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -5,
+   "files": [
+    "51-f-1.mp3",
+    "51-f-2.mp3"
+   ]
+  },
+  {
+   "key": 51,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -5,
+   "files": [
+    "51-fff-1.mp3",
+    "51-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 54,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": -1,
+   "files": [
+    "54-p-1.mp3",
+    "54-p-2.mp3"
+   ]
+  },
+  {
+   "key": 54,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -4,
+   "files": [
+    "54-f-1.mp3",
+    "54-f-2.mp3"
+   ]
+  },
+  {
+   "key": 54,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -3,
+   "files": [
+    "54-fff-1.mp3",
+    "54-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 57,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": -1,
+   "files": [
+    "57-p-1.mp3",
+    "57-p-2.mp3"
+   ]
+  },
+  {
+   "key": 57,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -3,
+   "files": [
+    "57-f-1.mp3",
+    "57-f-2.mp3"
+   ]
+  },
+  {
+   "key": 57,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": -3,
+   "files": [
+    "57-fff-1.mp3",
+    "57-fff-2.mp3"
+   ]
+  },
+  {
+   "key": 60,
+   "lovel": 0,
+   "hivel": 50,
+   "tune": 2,
+   "files": [
+    "60-p-1.mp3",
+    "60-p-2.mp3"
+   ]
+  },
+  {
+   "key": 60,
+   "lovel": 51,
+   "hivel": 110,
+   "tune": -1,
+   "files": [
+    "60-f-1.mp3",
+    "60-f-2.mp3"
+   ]
+  },
+  {
+   "key": 60,
+   "lovel": 111,
+   "hivel": 127,
+   "tune": 1,
+   "files": [
+    "60-fff-1.mp3",
+    "60-fff-2.mp3"
+   ]
+  }
+ ]
+}

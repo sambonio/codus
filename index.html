@@ -35,13 +35,6 @@
             <option value="roots">Chord roots</option>
           </select>
         </label>
-        <label>Bass sound
-          <select id="bassSound">
-            <option value="electric">Electric bass</option>
-            <option value="upright">Upright bass</option>
-            <option value="synth">Synth bass</option>
-          </select>
-        </label>
         <label>Keys
           <select id="keysMode">
             <option value="chords">Melody + chords</option>
@@ -67,12 +60,11 @@
 
     <section class="panel" aria-labelledby="play-heading">
       <h2 id="play-heading">3. Play</h2>
+      <div id="tracks" class="tracks" aria-label="Tracks"></div>
       <div class="row">
         <button id="play" class="primary" disabled>▶ Play</button>
         <button id="stop" disabled>■ Stop</button>
         <label><input id="loop" type="checkbox"> Loop</label>
-        <label><input id="playBass" type="checkbox" checked> Bass</label>
-        <label><input id="playKeys" type="checkbox" checked> Keys</label>
         <label><input id="playVoice" type="checkbox"> Original recording</label>
         <button id="midi" disabled>⬇ Download MIDI</button>
       </div>

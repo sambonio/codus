@@ -80,3 +80,9 @@ canvas { display: block; width: 100%; }
 .swatch.melody { background: var(--melody); }
 .swatch.bass { background: var(--bass); }
 .swatch.keys { background: var(--keys); }
+
+.tracks { display: grid; gap: 8px; margin-bottom: 12px; }
+.tracks:empty { display: none; }
+.track { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.track-name { font-weight: 600; min-width: 3.5em; }
+.track input[type="range"] { width: 120px; accent-color: var(--accent); }

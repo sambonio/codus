@@ -1,23 +1,24 @@
 import { detectPitchTrack, downsample } from './pitch.js';
 import { segmentNotes, quantizeNotes, arrange, detectKey, midiToName } from './notes.js';
-import { playSynthBassNote, playKeysNote, playParts } from './synth.js';
-import { SAMPLED_BASSES, loadSampledBass, sampledBassPlayer } from './sampler.js';
+import { playParts } from './synth.js';
+import { getInstrument, instrumentsFor, loadInstrument } from './instruments/index.js';
+import { buildSong, trackSettings, songLength } from './song.js';
 import { writeMidi } from './midi.js';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
   record: $('record'), file: $('file'), timer: $('timer'), meter: $('meter'),
-  bassMode: $('bassMode'), bassSound: $('bassSound'), keysMode: $('keysMode'), quantize: $('quantize'),
+  bassMode: $('bassMode'), keysMode: $('keysMode'), quantize: $('quantize'),
   bpm: $('bpm'), transpose: $('transpose'), summary: $('summary'), roll: $('roll'),
   play: $('play'), stop: $('stop'), loop: $('loop'), midi: $('midi'),
-  playBass: $('playBass'), playKeys: $('playKeys'), playVoice: $('playVoice'),
+  tracks: $('tracks'), playVoice: $('playVoice'),
 };
 
 let audioCtx = null;
 const state = {
   recording: null, // AudioBuffer of the captured voice
   rawNotes: [],    // notes as sung, times relative to the recording
-  arrangement: null,
+  song: null,      // see src/song.js
   playback: null,
 };
 
@@ -122,14 +123,15 @@ async function analyseBlob(blob) {
   const track = detectPitchTrack(samples, sampleRate, { frameSize: 1024, hopSize: 256, minFreq: 55, maxFreq: 1000 });
   state.rawNotes = segmentNotes(track);
   rebuild();
-  if (SAMPLED_BASSES[ui.bassSound.value]) loadSampledBass(ctx, ui.bassSound.value).catch(() => {});
+  preloadInstruments();
 }
 
 function rebuild() {
   stopPlayback();
   const raw = state.rawNotes;
   if (raw.length === 0) {
-    state.arrangement = null;
+    state.song = null;
+    renderTracks();
     ui.summary.textContent = state.recording
       ? "Didn't catch any notes. Try humming a bit louder and closer to the mic."
       : 'Record something to get started.';
@@ -145,8 +147,9 @@ function rebuild() {
   if (ui.quantize.checked) melody = quantizeNotes(melody, { bpm, division: 2 });
 
   const key = detectKey(melody);
-  const { bass, keys } = arrange(melody, { bassMode: ui.bassMode.value, keysMode: ui.keysMode.value, key });
-  state.arrangement = { melody, bass, keys, key, origin, bpm };
+  const parts = arrange(melody, { bassMode: ui.bassMode.value, keysMode: ui.keysMode.value, key });
+  state.song = buildSong({ melody, key, bpm, origin, parts }, trackSettings(state.song));
+  renderTracks();
 
   const range = `${midiToName(Math.min(...melody.map((n) => n.midi)))}–${midiToName(Math.max(...melody.map((n) => n.midi)))}`;
   ui.summary.textContent = `${melody.length} notes, range ${range}, sounds like ${key.name}.`;
@@ -168,56 +171,97 @@ for (const el of [ui.bassMode, ui.keysMode, ui.quantize, ui.bpm, ui.transpose]) 
   el.addEventListener('change', rebuild);
 }
 
+// ---------- Tracks ----------
+
+function renderTracks() {
+  ui.tracks.replaceChildren();
+  for (const track of state.song?.tracks ?? []) {
+    const row = document.createElement('div');
+    row.className = 'track';
+
+    const name = document.createElement('span');
+    name.className = 'track-name';
+    name.textContent = track.name;
+
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', `${track.name} instrument`);
+    for (const inst of instrumentsFor(track.role)) select.add(new Option(inst.name, inst.id, false, inst.id === track.instrument));
+    select.addEventListener('change', () => {
+      track.instrument = select.value;
+      loadInstrument(getCtx(), track.instrument).catch(() => {});
+    });
+
+    const volume = document.createElement('input');
+    volume.type = 'range';
+    volume.min = '0';
+    volume.max = '1.5';
+    volume.step = '0.05';
+    volume.value = String(track.volume);
+    volume.setAttribute('aria-label', `${track.name} volume`);
+    volume.addEventListener('input', () => {
+      track.volume = Number(volume.value);
+      state.playback?.handle.setGain(track.id, track.muted ? 0 : track.volume);
+    });
+
+    const mute = document.createElement('label');
+    const muteBox = document.createElement('input');
+    muteBox.type = 'checkbox';
+    muteBox.checked = track.muted;
+    muteBox.addEventListener('change', () => {
+      track.muted = muteBox.checked;
+      state.playback?.handle.setGain(track.id, track.muted ? 0 : track.volume);
+    });
+    mute.append(muteBox, ' Mute');
+
+    row.append(name, select, volume, mute);
+    ui.tracks.append(row);
+  }
+}
+
+// Start fetching samples early so Play is instant.
+function preloadInstruments() {
+  for (const track of state.song?.tracks ?? []) loadInstrument(getCtx(), track.instrument).catch(() => {});
+}
+
 // ---------- Playback ----------
-
-function arrangementLength(a) {
-  return Math.max(...[...a.melody, ...a.bass, ...a.keys].map((n) => n.start + n.duration));
-}
-
-// Resolves to a note-playing function for the chosen bass sound,
-// loading its samples the first time it's used.
-async function bassInstrument(ctx) {
-  const name = ui.bassSound.value;
-  if (!SAMPLED_BASSES[name]) return playSynthBassNote;
-  return sampledBassPlayer(name, await loadSampledBass(ctx, name));
-}
 
 let playRequest = 0;
 
 async function startPlayback() {
-  const a = state.arrangement;
-  if (!a) return;
+  const song = state.song;
+  if (!song) return;
   stopPlayback();
   const ctx = getCtx();
   const request = ++playRequest;
-  const parts = [];
-  if (ui.playBass.checked) {
-    let playBass;
+
+  ui.play.textContent = '… Loading';
+  const failed = [];
+  const parts = await Promise.all(song.tracks.map(async (track) => {
+    let instrument;
     try {
-      ui.play.textContent = '… Loading bass';
-      playBass = await bassInstrument(ctx);
+      instrument = await loadInstrument(ctx, track.instrument);
     } catch (err) {
-      ui.summary.textContent = `Couldn't load the ${ui.bassSound.selectedOptions[0].text} samples (${err.message}). Using the synth bass instead.`;
-      playBass = playSynthBassNote;
-    } finally {
-      ui.play.textContent = '▶ Play';
+      failed.push(`${getInstrument(track.instrument)?.name ?? track.instrument} (${err.message})`);
+      return null;
     }
-    // Another play or stop happened while loading.
-    if (request !== playRequest || state.playback) return;
-    parts.push({ notes: a.bass, play: playBass, gain: 1 });
-  }
-  if (ui.playKeys.checked) parts.push({ notes: a.keys, play: playKeysNote, gain: 0.9 });
-  const handle = playParts(ctx, parts);
+    return { id: track.id, notes: track.notes, play: instrument.play, gain: track.muted ? 0 : track.volume };
+  }));
+  ui.play.textContent = '▶ Play';
+  if (failed.length) ui.summary.textContent = `Couldn't load ${failed.join(', ')}. Check your connection and press Play again.`;
+  // Another play or stop happened while loading.
+  if (request !== playRequest || state.playback) return;
+
+  const handle = playParts(ctx, parts.filter(Boolean));
 
   let voice = null;
   if (ui.playVoice.checked && state.recording) {
     voice = ctx.createBufferSource();
     voice.buffer = state.recording;
     voice.connect(ctx.destination);
-    voice.start(handle.startTime, a.origin);
+    voice.start(handle.startTime, song.origin);
   }
 
-  const length = arrangementLength(a) + 0.4;
+  const length = songLength(song) + 0.4;
   state.playback = { handle, voice, startTime: handle.startTime, length };
   ui.stop.disabled = false;
   animatePlayhead();
@@ -248,25 +292,17 @@ function animatePlayhead() {
 }
 
 ui.play.addEventListener('click', startPlayback);
-// Start fetching samples as soon as a sound is picked, so Play is instant.
-ui.bassSound.addEventListener('change', () => {
-  if (SAMPLED_BASSES[ui.bassSound.value]) loadSampledBass(getCtx(), ui.bassSound.value).catch(() => {});
-});
 ui.stop.addEventListener('click', stopPlayback);
 
 // ---------- MIDI export ----------
 
-// General MIDI programs (0-based): Acoustic Bass, Electric Bass (finger), Synth Bass 1.
-const GM_BASS_PROGRAMS = { upright: 32, electric: 33, synth: 38 };
-
 ui.midi.addEventListener('click', () => {
-  const a = state.arrangement;
-  if (!a) return;
+  const song = state.song;
+  if (!song) return;
   const bytes = writeMidi([
-    { name: 'Melody', notes: a.melody, program: 0 },
-    { name: 'Bass', notes: a.bass, program: GM_BASS_PROGRAMS[ui.bassSound.value] ?? 33 },
-    { name: 'Keys', notes: a.keys, program: 4 },   // Electric Piano 1
-  ], { bpm: a.bpm });
+    { name: 'Melody', notes: song.melody, program: 0 },
+    ...song.tracks.map((t) => ({ name: t.name, notes: t.notes, program: getInstrument(t.instrument)?.gmProgram ?? 0 })),
+  ], { bpm: song.bpm });
   const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
   const link = document.createElement('a');
   link.href = url;
@@ -292,13 +328,13 @@ function drawRoll(playhead = null) {
   const css = getComputedStyle(document.body);
   const color = (name) => css.getPropertyValue(name).trim();
 
-  const a = state.arrangement;
-  if (!a) return;
+  const song = state.song;
+  if (!song) return;
 
-  const all = [...a.melody, ...a.bass, ...a.keys];
+  const all = [...song.melody, ...song.tracks.flatMap((t) => t.notes)];
   const low = Math.min(...all.map((n) => n.midi)) - 1;
   const high = Math.max(...all.map((n) => n.midi)) + 1;
-  const length = arrangementLength(a);
+  const length = songLength(song);
   const pad = 32;
   const x = (t) => pad + (t / length) * (width - pad - 8);
   const rowH = (height - 8) / (high - low + 1);
@@ -315,7 +351,7 @@ function drawRoll(playhead = null) {
     }
   }
   g.strokeStyle = color('--grid');
-  const beat = 60 / a.bpm;
+  const beat = 60 / song.bpm;
   for (let t = 0; t <= length; t += beat) {
     g.beginPath();
     g.moveTo(x(t), 0);
@@ -331,9 +367,10 @@ function drawRoll(playhead = null) {
     }
     g.globalAlpha = 1;
   };
-  drawNotes(a.keys, color('--keys'), 0.85);
-  drawNotes(a.bass, color('--bass'), 0.9);
-  drawNotes(a.melody, color('--melody'), 0.35);
+  for (const track of song.tracks) {
+    if (!track.muted) drawNotes(track.notes, color(`--${track.id}`) || color('--keys'), track.id === 'bass' ? 0.9 : 0.85);
+  }
+  drawNotes(song.melody, color('--melody'), 0.35);
 
   if (playhead !== null) {
     g.strokeStyle = color('--accent');

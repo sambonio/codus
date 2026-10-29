@@ -1,0 +1,449 @@
+{
+ "name": "Upright bass",
+ "credit": "Meatbass by Karoryfer Lecolds: 1958 Otto Rubner double bass played pizzicato by Drogomir Smolken, recorded by Ludwik Zamenhof.",
+ "license": "CC BY 4.0",
+ "source": "https://github.com/sfzinstruments/karoryfer.meatbass",
+ "release": 0.09,
+ "zones": [
+  {
+   "key": 30,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": -3,
+   "files": [
+    "30-vl1-1.mp3",
+    "30-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 30,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": -1,
+   "files": [
+    "30-vl2-1.mp3",
+    "30-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 30,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": -4,
+   "files": [
+    "30-vl3-1.mp3",
+    "30-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 30,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": -6,
+   "files": [
+    "30-vl4-1.mp3",
+    "30-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 33,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 13,
+   "files": [
+    "33-vl1-1.mp3",
+    "33-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 33,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 6,
+   "files": [
+    "33-vl2-1.mp3",
+    "33-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 33,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": 2,
+   "files": [
+    "33-vl3-1.mp3",
+    "33-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 33,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": 1,
+   "files": [
+    "33-vl4-1.mp3",
+    "33-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 36,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 6,
+   "files": [
+    "36-vl1-1.mp3",
+    "36-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 36,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 7,
+   "files": [
+    "36-vl2-1.mp3",
+    "36-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 36,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": 8,
+   "files": [
+    "36-vl3-1.mp3",
+    "36-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 36,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": 13,
+   "files": [
+    "36-vl4-1.mp3",
+    "36-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 39,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 6,
+   "files": [
+    "39-vl1-1.mp3",
+    "39-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 39,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 4,
+   "files": [
+    "39-vl2-1.mp3",
+    "39-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 39,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": -2,
+   "files": [
+    "39-vl3-1.mp3",
+    "39-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 39,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": -4,
+   "files": [
+    "39-vl4-1.mp3",
+    "39-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 42,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": -1,
+   "files": [
+    "42-vl1-1.mp3",
+    "42-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 42,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": -4,
+   "files": [
+    "42-vl2-1.mp3",
+    "42-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 42,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": -4,
+   "files": [
+    "42-vl3-1.mp3",
+    "42-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 42,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": 2,
+   "files": [
+    "42-vl4-1.mp3",
+    "42-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 45,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 2,
+   "files": [
+    "45-vl1-1.mp3",
+    "45-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 45,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 8,
+   "files": [
+    "45-vl2-1.mp3",
+    "45-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 45,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": 14,
+   "files": [
+    "45-vl3-1.mp3",
+    "45-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 45,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": 25,
+   "files": [
+    "45-vl4-1.mp3",
+    "45-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 48,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 3,
+   "files": [
+    "48-vl1-1.mp3",
+    "48-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 48,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 1,
+   "files": [
+    "48-vl2-1.mp3",
+    "48-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 48,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": 0,
+   "files": [
+    "48-vl3-1.mp3",
+    "48-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 48,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": -1,
+   "files": [
+    "48-vl4-1.mp3",
+    "48-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 51,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 18,
+   "files": [
+    "51-vl1-1.mp3",
+    "51-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 51,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 14,
+   "files": [
+    "51-vl2-1.mp3",
+    "51-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 51,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": 13,
+   "files": [
+    "51-vl3-1.mp3",
+    "51-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 51,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": 14,
+   "files": [
+    "51-vl4-1.mp3",
+    "51-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 54,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 3,
+   "files": [
+    "54-vl1-1.mp3",
+    "54-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 54,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 4,
+   "files": [
+    "54-vl2-1.mp3",
+    "54-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 54,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": -1,
+   "files": [
+    "54-vl3-1.mp3",
+    "54-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 54,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": -3,
+   "files": [
+    "54-vl4-1.mp3",
+    "54-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 57,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 3,
+   "files": [
+    "57-vl1-1.mp3",
+    "57-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 57,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 7,
+   "files": [
+    "57-vl2-1.mp3",
+    "57-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 57,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": 3,
+   "files": [
+    "57-vl3-1.mp3",
+    "57-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 57,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": 3,
+   "files": [
+    "57-vl4-1.mp3",
+    "57-vl4-2.mp3"
+   ]
+  },
+  {
+   "key": 60,
+   "lovel": 0,
+   "hivel": 32,
+   "tune": 17,
+   "files": [
+    "60-vl1-1.mp3",
+    "60-vl1-2.mp3"
+   ]
+  },
+  {
+   "key": 60,
+   "lovel": 33,
+   "hivel": 64,
+   "tune": 7,
+   "files": [
+    "60-vl2-1.mp3",
+    "60-vl2-2.mp3"
+   ]
+  },
+  {
+   "key": 60,
+   "lovel": 65,
+   "hivel": 96,
+   "tune": 10,
+   "files": [
+    "60-vl3-1.mp3",
+    "60-vl3-2.mp3"
+   ]
+  },
+  {
+   "key": 60,
+   "lovel": 97,
+   "hivel": 127,
+   "tune": 0,
+   "files": [
+    "60-vl4-1.mp3",
+    "60-vl4-2.mp3"
+   ]
+  }
+ ]
+}

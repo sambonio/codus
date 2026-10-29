@@ -95,8 +95,8 @@ export function playKeysNote(ctx, out, { midi, start, duration, velocity = 1 }) 
 }
 
 /**
- * Schedule parts on an AudioContext. Each part is { notes, play, gain }.
- * Returns a stop() function that silences everything scheduled.
+ * Schedule parts on an AudioContext. Each part is { id, notes, play, gain }.
+ * Returns { startTime, stop(), setGain(id, gain) }.
  */
 export function playParts(ctx, parts, { offset = 0.1 } = {}) {
   const master = ctx.createGain();
@@ -105,16 +105,21 @@ export function playParts(ctx, parts, { offset = 0.1 } = {}) {
   master.connect(compressor).connect(ctx.destination);
 
   const t0 = ctx.currentTime + offset;
+  const buses = new Map();
   for (const part of parts) {
     const bus = ctx.createGain();
     bus.gain.value = part.gain ?? 1;
     bus.connect(master);
+    buses.set(part.id, bus);
     for (const note of part.notes) {
       part.play(ctx, bus, { ...note, start: t0 + note.start });
     }
   }
   return {
     startTime: t0,
+    setGain(id, gain) {
+      buses.get(id)?.gain.setTargetAtTime(gain, ctx.currentTime, 0.02);
+    },
     stop() {
       master.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
       setTimeout(() => master.disconnect(), 200);
