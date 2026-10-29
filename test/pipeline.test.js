@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { yin, detectPitchTrack, downsample } from '../src/pitch.js';
 import {
   freqToMidi, midiToFreq, midiToName, segmentNotes, quantizeNotes,
-  detectKey, harmonize, arrange, estimateTuningOffset,
+  detectKey, harmonize, arrange, estimateTuningOffset, BASS_LOW, BASS_HIGH,
 } from '../src/notes.js';
 import { writeMidi } from '../src/midi.js';
 
@@ -115,7 +115,7 @@ test('arrange keeps bass and keys in their ranges', () => {
   for (const bassMode of ['melody', 'roots']) {
     const { bass, keys } = arrange(melody, { bassMode, keysMode: 'chords' });
     assert.equal(bass.length, melody.length);
-    for (const n of bass) assert.ok(n.midi >= 28 && n.midi <= 52, `bass ${n.midi}`);
+    for (const n of bass) assert.ok(n.midi >= BASS_LOW && n.midi <= BASS_HIGH, `bass ${n.midi}`);
     for (const n of keys) assert.ok(n.midi >= 48 && n.midi <= 79, `keys ${n.midi}`);
     assert.ok(keys.length > melody.length, 'chords added');
   }

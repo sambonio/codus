@@ -1,39 +1,65 @@
 // Web Audio instruments and a simple scheduler for playing note lists.
 import { midiToFreq } from './notes.js';
 
-/** Plucky synth bass: saw + sub sine through an enveloped low-pass filter. */
-export function playBassNote(ctx, out, { midi, start, duration, velocity = 1 }) {
-  const freq = midiToFreq(midi);
-  const end = start + Math.max(0.08, duration);
+let saturationCurve = null;
+function softClipCurve() {
+  if (!saturationCurve) {
+    saturationCurve = new Float32Array(1024);
+    for (let i = 0; i < saturationCurve.length; i++) {
+      const x = (i / (saturationCurve.length - 1)) * 2 - 1;
+      saturationCurve[i] = Math.tanh(2.5 * x) / Math.tanh(2.5);
+    }
+  }
+  return saturationCurve;
+}
 
-  const saw = ctx.createOscillator();
-  saw.type = 'sawtooth';
-  saw.frequency.value = freq;
-  const sub = ctx.createOscillator();
-  sub.type = 'sine';
-  sub.frequency.value = freq;
+/**
+ * Analog-style synth bass: two slightly detuned saws plus a sine for weight,
+ * through a filter whose sweep never closes below the audible range, then
+ * gentle saturation so the line still reads on laptop and phone speakers.
+ */
+export function playSynthBassNote(ctx, out, { midi, start, duration, velocity = 1 }) {
+  const freq = midiToFreq(midi);
+  const end = start + Math.max(0.1, duration);
+  const stopAt = end + 0.3;
+
+  const mix = ctx.createGain();
+  mix.gain.value = 0.5;
+  const oscillators = [];
+  for (const [type, detune, level] of [['sawtooth', -7, 0.45], ['sawtooth', 7, 0.45], ['sine', 0, 0.9]]) {
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.detune.value = detune;
+    const g = ctx.createGain();
+    g.gain.value = level;
+    osc.connect(g).connect(mix);
+    oscillators.push(osc);
+  }
 
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.Q.value = 6;
-  filter.frequency.setValueAtTime(freq * 8, start);
-  filter.frequency.exponentialRampToValueAtTime(freq * 1.5, start + 0.25);
+  filter.Q.value = 1.2;
+  const open = Math.min(5000, freq * 14 + 600 * velocity);
+  const closed = Math.max(260, freq * 4);
+  filter.frequency.setValueAtTime(open, start);
+  filter.frequency.setTargetAtTime(closed, start + 0.005, 0.09);
 
-  const sawGain = ctx.createGain();
-  sawGain.gain.value = 0.35;
+  const drive = ctx.createWaveShaper();
+  drive.curve = softClipCurve();
+  drive.oversample = '2x';
+
   const amp = ctx.createGain();
-  const peak = 0.5 * velocity;
+  const peak = 0.45 * (0.5 + 0.5 * velocity);
   amp.gain.setValueAtTime(0, start);
-  amp.gain.linearRampToValueAtTime(peak, start + 0.008);
-  amp.gain.setTargetAtTime(peak * 0.7, start + 0.01, 0.15);
-  amp.gain.setTargetAtTime(0, end, 0.03);
+  amp.gain.linearRampToValueAtTime(peak, start + 0.006);
+  amp.gain.setTargetAtTime(peak * 0.75, start + 0.006, 0.2);
+  amp.gain.setTargetAtTime(0, end, 0.04);
 
-  saw.connect(sawGain).connect(filter);
-  sub.connect(filter);
-  filter.connect(amp).connect(out);
-  for (const osc of [saw, sub]) {
+  mix.connect(filter).connect(drive).connect(amp).connect(out);
+  for (const osc of oscillators) {
     osc.start(start);
-    osc.stop(end + 0.2);
+    osc.stop(stopAt);
   }
 }
 

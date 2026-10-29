@@ -197,6 +197,11 @@ export function harmonize(midi, key) {
   return { root: triads[0][0], pitchClasses: triads[0] };
 }
 
+// A1 to A3: low enough to sound like bass, high enough that the line still
+// comes through on laptop and phone speakers, which roll off below ~80 Hz.
+export const BASS_LOW = 33;
+export const BASS_HIGH = 57;
+
 /**
  * Build bass and keys parts from melody notes.
  *
@@ -210,7 +215,7 @@ export function harmonize(midi, key) {
 export function arrange(notes, { bassMode = 'melody', keysMode = 'chords', key = detectKey(notes) } = {}) {
   const bass = notes.map((n) => {
     const source = bassMode === 'roots' ? harmonize(n.midi, key).root : n.midi;
-    return { ...n, midi: fitToRange(source, 28, 52) };
+    return { ...n, midi: fitToRange(source, BASS_LOW, BASS_HIGH) };
   });
 
   const keys = [];

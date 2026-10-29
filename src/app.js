@@ -1,12 +1,13 @@
 import { detectPitchTrack, downsample } from './pitch.js';
 import { segmentNotes, quantizeNotes, arrange, detectKey, midiToName } from './notes.js';
-import { playBassNote, playKeysNote, playParts } from './synth.js';
+import { playSynthBassNote, playKeysNote, playParts } from './synth.js';
+import { SAMPLED_BASSES, loadSampledBass, sampledBassPlayer } from './sampler.js';
 import { writeMidi } from './midi.js';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
   record: $('record'), file: $('file'), timer: $('timer'), meter: $('meter'),
-  bassMode: $('bassMode'), keysMode: $('keysMode'), quantize: $('quantize'),
+  bassMode: $('bassMode'), bassSound: $('bassSound'), keysMode: $('keysMode'), quantize: $('quantize'),
   bpm: $('bpm'), transpose: $('transpose'), summary: $('summary'), roll: $('roll'),
   play: $('play'), stop: $('stop'), loop: $('loop'), midi: $('midi'),
   playBass: $('playBass'), playKeys: $('playKeys'), playVoice: $('playVoice'),
@@ -121,6 +122,7 @@ async function analyseBlob(blob) {
   const track = detectPitchTrack(samples, sampleRate, { frameSize: 1024, hopSize: 256, minFreq: 55, maxFreq: 1000 });
   state.rawNotes = segmentNotes(track);
   rebuild();
+  if (SAMPLED_BASSES[ui.bassSound.value]) loadSampledBass(ctx, ui.bassSound.value).catch(() => {});
 }
 
 function rebuild() {
@@ -172,13 +174,38 @@ function arrangementLength(a) {
   return Math.max(...[...a.melody, ...a.bass, ...a.keys].map((n) => n.start + n.duration));
 }
 
-function startPlayback() {
+// Resolves to a note-playing function for the chosen bass sound,
+// loading its samples the first time it's used.
+async function bassInstrument(ctx) {
+  const name = ui.bassSound.value;
+  if (!SAMPLED_BASSES[name]) return playSynthBassNote;
+  return sampledBassPlayer(name, await loadSampledBass(ctx, name));
+}
+
+let playRequest = 0;
+
+async function startPlayback() {
   const a = state.arrangement;
   if (!a) return;
   stopPlayback();
   const ctx = getCtx();
+  const request = ++playRequest;
   const parts = [];
-  if (ui.playBass.checked) parts.push({ notes: a.bass, play: playBassNote, gain: 1 });
+  if (ui.playBass.checked) {
+    let playBass;
+    try {
+      ui.play.textContent = '… Loading bass';
+      playBass = await bassInstrument(ctx);
+    } catch (err) {
+      ui.summary.textContent = `Couldn't load the ${ui.bassSound.selectedOptions[0].text} samples (${err.message}). Using the synth bass instead.`;
+      playBass = playSynthBassNote;
+    } finally {
+      ui.play.textContent = '▶ Play';
+    }
+    // Another play or stop happened while loading.
+    if (request !== playRequest || state.playback) return;
+    parts.push({ notes: a.bass, play: playBass, gain: 1 });
+  }
   if (ui.playKeys.checked) parts.push({ notes: a.keys, play: playKeysNote, gain: 0.9 });
   const handle = playParts(ctx, parts);
 
@@ -197,6 +224,7 @@ function startPlayback() {
 }
 
 function stopPlayback() {
+  playRequest++;
   const p = state.playback;
   if (!p) return;
   p.handle.stop();
@@ -220,16 +248,23 @@ function animatePlayhead() {
 }
 
 ui.play.addEventListener('click', startPlayback);
+// Start fetching samples as soon as a sound is picked, so Play is instant.
+ui.bassSound.addEventListener('change', () => {
+  if (SAMPLED_BASSES[ui.bassSound.value]) loadSampledBass(getCtx(), ui.bassSound.value).catch(() => {});
+});
 ui.stop.addEventListener('click', stopPlayback);
 
 // ---------- MIDI export ----------
+
+// General MIDI programs (0-based): Acoustic Bass, Electric Bass (finger), Synth Bass 1.
+const GM_BASS_PROGRAMS = { upright: 32, electric: 33, synth: 38 };
 
 ui.midi.addEventListener('click', () => {
   const a = state.arrangement;
   if (!a) return;
   const bytes = writeMidi([
     { name: 'Melody', notes: a.melody, program: 0 },
-    { name: 'Bass', notes: a.bass, program: 38 },  // Synth Bass 1
+    { name: 'Bass', notes: a.bass, program: GM_BASS_PROGRAMS[ui.bassSound.value] ?? 33 },
     { name: 'Keys', notes: a.keys, program: 4 },   // Electric Piano 1
   ], { bpm: a.bpm });
   const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
