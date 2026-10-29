@@ -8,6 +8,7 @@
   --melody: #868e96;
   --bass: #1971c2;
   --keys: #e8590c;
+  --extra: #2f9e44;
   --grid: #eeeae2;
 }
 
@@ -22,6 +23,7 @@
     --melody: #adb5bd;
     --bass: #4dabf7;
     --keys: #ff922b;
+    --extra: #69db7c;
     --grid: #2a2925;
   }
 }
@@ -80,10 +82,17 @@ canvas { display: block; width: 100%; }
 .swatch.melody { background: var(--melody); }
 .swatch.bass { background: var(--bass); }
 .swatch.keys { background: var(--keys); }
+.swatch.extra { background: var(--extra); }
 
 .tracks { display: grid; gap: 8px; margin-bottom: 12px; }
 .tracks:empty { display: none; }
 .track { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
-.track-name { font-weight: 600; min-width: 3.5em; }
+.track-name { font-weight: 600; flex-basis: 100%; }
 .track input[type="range"] { width: 120px; accent-color: var(--accent); }
 .track-controls:empty { display: none; }
+
+#builderText { flex: 1 1 260px; min-width: 0; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { border-radius: 999px; font-size: 0.9rem; padding: 4px 12px; }
+.track .remove { padding: 2px 10px; }
+.track select { max-width: 100%; }

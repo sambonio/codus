@@ -1,8 +1,10 @@
 import { detectPitchTrack, downsample } from './pitch.js';
 import { segmentNotes, quantizeNotes, arrange, detectKey, midiToName } from './notes.js';
 import { playParts } from './synth.js';
-import { getInstrument, instrumentsFor, loadInstrument } from './instruments/index.js';
-import { buildSong, trackSettings, songLength } from './song.js';
+import { getInstrument, instrumentGroups, loadInstrument } from './instruments/index.js';
+import { buildSong, songLength, addExtraTrack, setTrackPart } from './song.js';
+import { PART_TYPES } from './parts.js';
+import { buildFromDescription, SUGGESTIONS } from './builder.js';
 import { writeMidi } from './midi.js';
 
 const $ = (id) => document.getElementById(id);
@@ -12,6 +14,7 @@ const ui = {
   bpm: $('bpm'), transpose: $('transpose'), summary: $('summary'), roll: $('roll'),
   play: $('play'), stop: $('stop'), loop: $('loop'), midi: $('midi'),
   tracks: $('tracks'), playVoice: $('playVoice'),
+  builderForm: $('builderForm'), builderText: $('builderText'), builderSuggestions: $('builderSuggestions'), builderStatus: $('builderStatus'),
 };
 
 let audioCtx = null;
@@ -148,7 +151,7 @@ function rebuild() {
 
   const key = detectKey(melody);
   const parts = arrange(melody, { bassMode: ui.bassMode.value, keysMode: ui.keysMode.value, key });
-  state.song = buildSong({ melody, key, bpm, origin, parts }, trackSettings(state.song));
+  state.song = buildSong({ melody, key, bpm, origin, parts }, state.song?.tracks);
   renderTracks();
 
   const range = `${midiToName(Math.min(...melody.map((n) => n.midi)))}–${midiToName(Math.max(...melody.map((n) => n.midi)))}`;
@@ -185,7 +188,12 @@ function renderTracks() {
 
     const select = document.createElement('select');
     select.setAttribute('aria-label', `${track.name} instrument`);
-    for (const inst of instrumentsFor(track.role)) select.add(new Option(inst.name, inst.id, false, inst.id === track.instrument));
+    for (const [label, list] of instrumentGroups(track.role)) {
+      const group = document.createElement('optgroup');
+      group.label = label;
+      for (const inst of list) group.append(new Option(inst.name, inst.id, false, inst.id === track.instrument));
+      select.append(group);
+    }
     // Extra settings some instruments offer, like the organ's Leslie speed.
     const controls = document.createElement('span');
     controls.className = 'track-controls';
@@ -209,7 +217,12 @@ function renderTracks() {
     };
     select.addEventListener('change', () => {
       track.instrument = select.value;
+      if (track.role === 'extra') {
+        track.name = getInstrument(track.instrument).name.replace(/ \(.*\)/, '');
+        name.textContent = track.name;
+      }
       showControls();
+      loadInstrument(getCtx(), track.instrument).then((inst) => inst.prepare?.(track.notes)).catch(() => {});
     });
 
     const volume = document.createElement('input');
@@ -234,15 +247,77 @@ function renderTracks() {
     });
     mute.append(muteBox, ' Mute');
 
-    row.append(name, select, controls, volume, mute);
+    row.append(name, select, controls);
+    if (track.role === 'extra') {
+      const part = document.createElement('select');
+      part.setAttribute('aria-label', `${track.name} part`);
+      for (const [value, text] of Object.entries(PART_TYPES)) part.add(new Option(text, value, false, value === track.part));
+      part.addEventListener('change', () => {
+        stopPlayback();
+        setTrackPart(state.song, track, part.value);
+        drawRoll();
+      });
+      row.append(part);
+    }
+    row.append(volume, mute);
+    if (track.role === 'extra') {
+      const remove = document.createElement('button');
+      remove.className = 'remove';
+      remove.textContent = '✕';
+      remove.title = `Remove ${track.name}`;
+      remove.setAttribute('aria-label', `Remove ${track.name}`);
+      remove.addEventListener('click', () => {
+        stopPlayback();
+        state.song.tracks = state.song.tracks.filter((t) => t !== track);
+        renderTracks();
+        drawRoll();
+      });
+      row.append(remove);
+    }
     showControls();
     ui.tracks.append(row);
   }
 }
 
+// ---------- Instrument builder ----------
+
+function addFromDescription(text) {
+  if (!state.song) {
+    ui.builderStatus.textContent = 'Hum a melody first, then add instruments to it.';
+    return;
+  }
+  const built = buildFromDescription(text);
+  if (!built) {
+    ui.builderStatus.textContent = `Couldn't work out an instrument from "${text}". Try naming one, like "cello" or "brass stabs".`;
+    return;
+  }
+  stopPlayback();
+  const track = addExtraTrack(state.song, built);
+  ui.builderStatus.textContent = `Added ${track.name} playing ${PART_TYPES[track.part].toLowerCase()}.`;
+  ui.builderText.value = '';
+  renderTracks();
+  drawRoll();
+  loadInstrument(getCtx(), track.instrument).then((inst) => inst.prepare?.(track.notes)).catch(() => {});
+}
+
+ui.builderForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  addFromDescription(ui.builderText.value);
+});
+for (const suggestion of SUGGESTIONS) {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'chip';
+  chip.textContent = suggestion;
+  chip.addEventListener('click', () => addFromDescription(suggestion));
+  ui.builderSuggestions.append(chip);
+}
+
 // Start fetching samples early so Play is instant.
 function preloadInstruments() {
-  for (const track of state.song?.tracks ?? []) loadInstrument(getCtx(), track.instrument).catch(() => {});
+  for (const track of state.song?.tracks ?? []) {
+    loadInstrument(getCtx(), track.instrument).then((inst) => inst.prepare?.(track.notes)).catch(() => {});
+  }
 }
 
 // ---------- Playback ----------
@@ -262,6 +337,7 @@ async function startPlayback() {
     let instrument;
     try {
       instrument = await loadInstrument(ctx, track.instrument);
+      await instrument.prepare?.(track.notes);
     } catch (err) {
       failed.push(`${getInstrument(track.instrument)?.name ?? track.instrument} (${err.message})`);
       return null;
@@ -393,7 +469,7 @@ function drawRoll(playhead = null) {
     g.globalAlpha = 1;
   };
   for (const track of song.tracks) {
-    if (!track.muted) drawNotes(track.notes, color(`--${track.id}`) || color('--keys'), track.id === 'bass' ? 0.9 : 0.85);
+    if (!track.muted) drawNotes(track.notes, color(`--${track.id}`) || color('--extra'), track.id === 'bass' ? 0.9 : 0.7);
   }
   drawNotes(song.melody, color('--melody'), 0.35);
 

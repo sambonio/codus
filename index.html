@@ -55,11 +55,23 @@
         <span class="swatch melody"></span> Your melody
         <span class="swatch bass"></span> Bass
         <span class="swatch keys"></span> Keys
+        <span class="swatch extra"></span> Added instruments
       </div>
     </section>
 
+    <section class="panel" aria-labelledby="builder-heading">
+      <h2 id="builder-heading">3. Add instruments</h2>
+      <p class="muted">Describe an instrument and what it should play. It will follow your melody's chords.</p>
+      <form id="builderForm" class="row">
+        <input id="builderText" type="text" placeholder="e.g. warm strings pad, funky clavinet, flute harmony" aria-label="Describe an instrument">
+        <button type="submit" class="primary">+ Add</button>
+      </form>
+      <div id="builderSuggestions" class="chips" aria-label="Suggestions"></div>
+      <p id="builderStatus" class="muted" aria-live="polite"></p>
+    </section>
+
     <section class="panel" aria-labelledby="play-heading">
-      <h2 id="play-heading">3. Play</h2>
+      <h2 id="play-heading">4. Play</h2>
       <div id="tracks" class="tracks" aria-label="Tracks"></div>
       <div class="row">
         <button id="play" class="primary" disabled>▶ Play</button>
