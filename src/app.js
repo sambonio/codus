@@ -7,6 +7,7 @@ import { buildTimeline, createSection, moveInOrder, removeSection } from './arra
 import { PART_TYPES } from './parts.js';
 import { buildFromDescription, SUGGESTIONS } from './builder.js';
 import { writeMidi } from './midi.js';
+import { buildGarageBandPack, download } from './export.js';
 
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -14,6 +15,7 @@ const ui = {
   bassMode: $('bassMode'), keysMode: $('keysMode'), quantize: $('quantize'),
   bpm: $('bpm'), transpose: $('transpose'), summary: $('summary'), roll: $('roll'),
   play: $('play'), stop: $('stop'), loop: $('loop'), midi: $('midi'),
+  garageband: $('garageband'), exportStatus: $('exportStatus'),
   tracks: $('tracks'), playVoice: $('playVoice'), timeline: $('timeline'),
   sections: $('sections'), sectionName: $('sectionName'), deleteSection: $('deleteSection'),
   order: $('order'), addToOrder: $('addToOrder'),
@@ -297,6 +299,7 @@ function clampBpm() {
 function setPlayable(on) {
   ui.play.disabled = !on;
   ui.midi.disabled = !on;
+  ui.garageband.disabled = !on;
 }
 
 for (const el of [ui.bassMode, ui.keysMode, ui.quantize, ui.bpm, ui.transpose]) {
@@ -578,21 +581,67 @@ function animatePlayhead() {
 ui.play.addEventListener('click', startPlayback);
 ui.stop.addEventListener('click', stopPlayback);
 
-// ---------- MIDI export ----------
+// ---------- Export ----------
 
-ui.midi.addEventListener('click', () => {
+/**
+ * Every part of the song in the shape export.js takes: the melody (MIDI
+ * only), each instrument track, and the hummed voice section by section.
+ * With `sound`, instruments are loaded so the parts can be rendered to audio.
+ */
+async function exportTracks(song, { sound = false } = {}) {
+  const ctx = getCtx();
+  const tracks = [{ name: 'Melody', notes: song.melody, program: 0, stem: false }];
+  for (const track of song.tracks) {
+    const entry = { name: track.name, notes: track.notes, program: getInstrument(track.instrument)?.gmProgram ?? 0 };
+    if (sound) {
+      const instrument = await loadInstrument(ctx, track.instrument);
+      await instrument.prepare?.(track.notes);
+      Object.assign(entry, {
+        play: instrument.play, release: instrument.release, reverb: instrument.reverb ?? 0,
+        volume: track.volume, pan: track.pan ?? 0, mixGain: audibleGain(track, song.tracks),
+      });
+    }
+    tracks.push(entry);
+  }
+  const byId = new Map(state.sections.map((s) => [s.id, s]));
+  const clips = song.markers
+    .map((m) => ({ marker: m, section: byId.get(m.sectionId) }))
+    .filter(({ section }) => section?.recording)
+    .map(({ marker, section }) => ({
+      buffer: section.recording, offset: section.origin, at: marker.start, duration: marker.end - marker.start,
+    }));
+  if (clips.length) tracks.push({ name: 'Voice', clips, mixGain: ui.playVoice.checked ? 1 : 0 });
+  return tracks;
+}
+
+const markersFor = (song) => song.markers.map((m) => ({ name: m.name, start: m.start, end: m.end }));
+
+ui.midi.addEventListener('click', async () => {
   const song = state.song;
   if (!song) return;
-  const bytes = writeMidi([
-    { name: 'Melody', notes: song.melody, program: 0 },
-    ...song.tracks.map((t) => ({ name: t.name, notes: t.notes, program: getInstrument(t.instrument)?.gmProgram ?? 0 })),
-  ], { bpm: song.bpm });
-  const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/midi' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'hummagroove.mid';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const tracks = await exportTracks(song);
+  download(writeMidi(tracks, { bpm: song.bpm, markers: markersFor(song) }), 'hummagroove.mid', 'audio/midi');
+});
+
+ui.garageband.addEventListener('click', async () => {
+  const song = state.song;
+  if (!song) return;
+  ui.garageband.disabled = true;
+  const status = (text) => (ui.exportStatus.textContent = text);
+  try {
+    status('Loading instruments…');
+    const tracks = await exportTracks(song, { sound: true });
+    const zip = await buildGarageBandPack({
+      title: 'Hummagroove', bpm: song.bpm, tracks, markers: markersFor(song),
+      sampleRate: getCtx().sampleRate, onProgress: status,
+    });
+    download(zip, 'hummagroove-garageband.zip', 'application/zip');
+    status('Done. Unzip it and drag the files into GarageBand at bar 1.');
+  } catch (err) {
+    status(`Export failed: ${err.message}`);
+  } finally {
+    ui.garageband.disabled = !state.song;
+  }
 });
 
 // ---------- Piano roll ----------

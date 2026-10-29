@@ -143,3 +143,93 @@ test('legato melody with background noise still segments cleanly', () => {
   for (let i = 0; i < samples.length; i++) samples[i] += 0.02 * rand();
   assert.deepEqual(analyse(samples).map((n) => n.midi), melody.map((n) => n.midi));
 });
+
+// ---------- GarageBand export ----------
+
+import { encodeWav, makeZip, packLength, fileName, uniqueNames, sectionBars } from '../src/export.js';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+test('midi file has a 4/4 tempo track and keeps channel 10 for drums', () => {
+  const notes = [{ midi: 60, start: 0, duration: 0.5, velocity: 0.8 }];
+  const tracks = Array.from({ length: 11 }, (_, i) => ({ name: `T${i}`, notes, program: 1 }));
+  tracks.push({ name: 'Drums', notes: [{ midi: 36, start: 0, duration: 0.1 }], drums: true });
+  const bytes = writeMidi(tracks, { bpm: 90 });
+  const hex = Buffer.from(bytes).toString('hex');
+  assert.ok(hex.includes('00ff580404021808'), 'time signature 4/4');
+  const noteOnChannels = new Set();
+  for (let i = 0; i < bytes.length - 2; i++) {
+    if ((bytes[i] & 0xf0) === 0x90 && bytes[i + 1] < 128 && bytes[i + 2] > 0 && bytes[i + 2] < 128) noteOnChannels.add(bytes[i] & 0x0f);
+  }
+  // 11 melodic tracks use channels 0-8 and 10-11; the drum track uses 9.
+  assert.ok(noteOnChannels.has(9));
+  assert.ok(noteOnChannels.has(11));
+  // No program change on the drum channel.
+  assert.ok(!hex.includes('00c9'));
+});
+
+test('wav encoder writes a valid 24-bit stereo header and samples', () => {
+  const left = Float32Array.from([0, 0.5, -1, 1]);
+  const right = Float32Array.from([0, -0.5, 1, 2]); // clipped to 1
+  const wav = encodeWav([left, right], 48000);
+  const v = new DataView(wav.buffer);
+  assert.equal(Buffer.from(wav.subarray(0, 4)).toString(), 'RIFF');
+  assert.equal(v.getUint32(4, true), wav.length - 8);
+  assert.equal(v.getUint16(22, true), 2);
+  assert.equal(v.getUint32(24, true), 48000);
+  assert.equal(v.getUint16(34, true), 24);
+  assert.equal(v.getUint32(40, true), 4 * 2 * 3);
+  const sample = (frame, ch) => {
+    const p = 44 + (frame * 2 + ch) * 3;
+    return ((wav[p] | (wav[p + 1] << 8) | (wav[p + 2] << 16)) << 8) >> 8;
+  };
+  assert.equal(sample(1, 0), Math.round(0.5 * 8388607));
+  assert.equal(sample(2, 0), -8388607);
+  assert.equal(sample(3, 1), 8388607);
+  assert.equal(encodeWav([left], 44100, { bitDepth: 16 }).length, 44 + 4 * 2);
+});
+
+test('zip writer produces an archive that unzip accepts', () => {
+  const wav = encodeWav([new Float32Array(100).fill(0.25)], 44100);
+  const zip = makeZip([
+    { name: 'Song.mid', data: writeMidi([{ name: 'Bass', notes: [{ midi: 40, start: 0, duration: 1 }] }]) },
+    { name: 'Stems/Bass.wav', data: wav },
+    { name: 'How to open.txt', data: 'hello' },
+  ]);
+  const dir = mkdtempSync(join(tmpdir(), 'hg-'));
+  writeFileSync(join(dir, 'pack.zip'), zip);
+  try {
+    execFileSync('python3', ['-c', 'import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; z.extractall(sys.argv[2])', join(dir, 'pack.zip'), dir]);
+  } catch (err) {
+    if (err.code === 'ENOENT') return; // no python here; skip the round trip
+    throw err;
+  }
+  assert.deepEqual(readFileSync(join(dir, 'Stems/Bass.wav')), Buffer.from(wav));
+  assert.equal(readFileSync(join(dir, 'How to open.txt'), 'utf8'), 'hello');
+});
+
+test('pack length rounds up to whole bars and counts clips and sections', () => {
+  const bar = 4 * 60 / 120;
+  assert.equal(packLength([{ notes: [{ start: 0, duration: 1.4 }] }], 120), bar);
+  assert.equal(packLength([{ notes: [{ start: 0, duration: 1.8 }] }], 120), 2 * bar);
+  const clip = { buffer: { duration: 5 }, offset: 1, at: 2 };
+  assert.equal(packLength([{ clips: [clip] }], 120), 3 * bar);
+  assert.equal(packLength([{ clips: [{ ...clip, duration: 1 }] }], 120), 2 * bar);
+  assert.equal(packLength([], 120, { markers: [{ start: 0, end: 4 * bar }] }), 4 * bar);
+});
+
+test('stem names are safe and unique', () => {
+  assert.equal(fileName('Bass / Synth?'), 'Bass Synth');
+  assert.deepEqual(uniqueNames(['Strings', 'Keys', 'strings', 'Strings']), ['Strings', 'Keys', 'strings 2', 'Strings 3']);
+});
+
+test('sections are listed by the bar they start on, and written as MIDI markers', () => {
+  const markers = [{ name: 'Verse', start: 0, end: 8 }, { name: 'Chorus', start: 8, end: 16 }];
+  assert.deepEqual(sectionBars(markers, 120), ['Verse: bar 1', 'Chorus: bar 5']);
+  const hex = Buffer.from(writeMidi([], { bpm: 120, markers })).toString('hex');
+  // Chorus marker 8 s = 16 beats = 7680 ticks after Verse (varLen 0xbc 0x00).
+  assert.ok(hex.includes('00ff0605' + Buffer.from('Verse').toString('hex')));
+  assert.ok(hex.includes('bc00ff0606' + Buffer.from('Chorus').toString('hex')));
+});
