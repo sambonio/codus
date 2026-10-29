@@ -4,6 +4,7 @@ import {
   createTake, takeStart, takeEnd, uniqueTakeName, assembleTake, takePeaks, takeToWav,
 } from '../src/takes.js';
 import { encodeWav } from '../src/wav.js';
+import { buildSong, songLength, audioOnlySong } from '../src/song.js';
 
 const SR = 48000;
 
@@ -82,4 +83,16 @@ test('takeToWav pads a late take so it lines up with the song start', () => {
   assert.equal(view.getUint32(40, true), 150 * 2);
   assert.equal(view.getInt16(44 + 49 * 2, true), 0);
   assert.ok(view.getInt16(44 + 50 * 2, true) > 16000);
+});
+
+test('takes are song tracks that survive a rebuild and extend the song', () => {
+  const take = createTake({ kind: 'drums', samples: new Float32Array(10 * 1000), sampleRate: 1000, offset: 2 });
+  assert.equal(take.role, 'audio');
+  const drumsFirst = audioOnlySong(100, [take]);
+  assert.equal(songLength(drumsFirst), 12);
+
+  const melody = [{ midi: 60, start: 0, duration: 1 }];
+  const song = buildSong({ melody, key: null, bpm: 100, origin: 0, parts: { bass: [], keys: [] }, markers: [{ start: 0, end: 4.8 }] }, drumsFirst.tracks);
+  assert.ok(song.tracks.includes(take));
+  assert.equal(songLength(song), 12);
 });

@@ -1,11 +1,13 @@
 // Recorded audio tracks ("takes"): drums, guitar, vocals or anything else
 // played into the mic in time with the song, and played back alongside the
-// generated bass and keys.
+// generated tracks.
 //
-// A take is { id, name, kind, samples, sampleRate, offset, nudge, gain, muted }:
-// mono Float32 samples that start `offset` seconds into the song (song time 0
-// is the first note of the arrangement), with `nudge` in milliseconds for
-// fine-tuning the timing by ear.
+// A take is a song track (see src/song.js) with role 'audio' and no notes:
+//   { id, name, role: 'audio', kind, samples, sampleRate, offset, nudge,
+//     volume, pan, muted, solo, notes: [] }
+// `samples` is mono Float32 audio that starts `offset` seconds into the song
+// (song time 0 is the start of the first section), and `nudge` is in
+// milliseconds for fine-tuning the timing by ear.
 import { encodeWav } from './wav.js';
 
 export const TAKE_KINDS = {
@@ -20,16 +22,24 @@ let nextId = 1;
 
 export function createTake({ kind = 'other', name, samples, sampleRate, offset = 0 }) {
   return {
-    id: nextId++,
+    id: `audio-${nextId++}`,
+    role: 'audio',
     kind,
     name: name ?? TAKE_KINDS[kind] ?? 'Take',
     samples,
     sampleRate,
     offset,
     nudge: 0,
-    gain: 1,
+    volume: 1,
+    pan: 0,
     muted: false,
+    solo: false,
+    notes: [],
   };
+}
+
+export function isTake(track) {
+  return track.role === 'audio';
 }
 
 /** Song time (seconds) where the take's first sample plays. */
@@ -101,7 +111,7 @@ export function takeToWav(take) {
   } else if (startFrames < 0) {
     samples = take.samples.subarray(Math.min(-startFrames, take.samples.length));
   }
-  if (take.gain !== 1) samples = samples.map((v) => v * take.gain);
+  if (take.volume !== 1) samples = samples.map((v) => v * take.volume);
   return encodeWav([samples], take.sampleRate);
 }
 
@@ -210,28 +220,30 @@ function takeBuffer(ctx, take) {
   return buffer;
 }
 
-/** Play takes with song time 0 at `startTime`. Returns { stop() }. */
-export function playTakes(ctx, takes, startTime, out = ctx.destination) {
+/**
+ * A take as a part for playParts() in src/synth.js, so it shares the mix
+ * (level, pan, mute, solo and the master bus) with the instrument tracks.
+ */
+export function takePart(ctx, take, { gain = take.volume, pan = take.pan ?? 0 } = {}) {
   const sources = [];
-  for (const take of takes) {
-    if (take.muted || take.samples.length === 0) continue;
-    const source = ctx.createBufferSource();
-    source.buffer = takeBuffer(ctx, take);
-    const gain = ctx.createGain();
-    gain.gain.value = take.gain;
-    source.connect(gain).connect(out);
-    const start = takeStart(take);
-    if (start >= 0) source.start(startTime + start);
-    else if (-start < source.buffer.duration) source.start(startTime, -start);
-    else continue;
-    sources.push({ source, gain });
-  }
+  const buffer = takeBuffer(ctx, take);
   return {
-    stop() {
-      for (const { source, gain } of sources) {
-        gain.gain.setTargetAtTime(0, ctx.currentTime, 0.02);
-        try { source.stop(ctx.currentTime + 0.1); } catch { /* not started */ }
-      }
+    id: take.id,
+    gain,
+    pan,
+    notes: [{ start: takeStart(take), duration: buffer.duration, midi: 0 }],
+    play(ctx, out, { start }) {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(out);
+      // A take nudged earlier than the song start begins part-way through.
+      const late = Math.max(0, ctx.currentTime - start);
+      if (late >= buffer.duration) return;
+      source.start(start + late, late);
+      sources.push(source);
+    },
+    release() {
+      for (const source of sources) try { source.stop(); } catch { /* already stopped */ }
     },
   };
 }

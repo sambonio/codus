@@ -14,7 +14,9 @@
     </header>
 
     <section class="panel" aria-labelledby="capture-heading">
-      <h2 id="capture-heading">1. Capture</h2>
+      <h2 id="capture-heading">1. Hum your song</h2>
+      <p class="muted">Hum each part of your song as its own section, like a verse and a chorus.</p>
+      <div id="sections" class="chips sections" aria-label="Sections"></div>
       <div class="row">
         <button id="record" class="primary">● Record</button>
         <label class="file-button">
@@ -24,22 +26,24 @@
         <span id="timer" class="muted" aria-live="polite"></span>
       </div>
       <canvas id="meter" width="600" height="8" aria-hidden="true"></canvas>
+      <div class="row section-edit">
+        <label>Section name <input id="sectionName" type="text" maxlength="24"></label>
+        <button id="deleteSection" type="button">Delete section</button>
+      </div>
     </section>
 
     <section class="panel" aria-labelledby="arrange-heading">
       <h2 id="arrange-heading">2. Arrange</h2>
+      <div class="order-row">
+        <span class="muted">Song order</span>
+        <ol id="order" class="order" aria-label="Song order"></ol>
+        <select id="addToOrder" aria-label="Add a section to the song"></select>
+      </div>
       <div class="controls">
         <label>Bass line
           <select id="bassMode">
             <option value="melody">Follow the melody</option>
             <option value="roots">Chord roots</option>
-          </select>
-        </label>
-        <label>Bass sound
-          <select id="bassSound">
-            <option value="electric">Electric bass</option>
-            <option value="upright">Upright bass</option>
-            <option value="synth">Synth bass</option>
           </select>
         </label>
         <label>Keys
@@ -62,20 +66,19 @@
         <span class="swatch melody"></span> Your melody
         <span class="swatch bass"></span> Bass
         <span class="swatch keys"></span> Keys
+        <span class="swatch extra"></span> Added instruments
       </div>
     </section>
 
-    <section class="panel" aria-labelledby="play-heading">
-      <h2 id="play-heading">3. Play</h2>
-      <div class="row">
-        <button id="play" class="primary" disabled>▶ Play</button>
-        <button id="stop" disabled>■ Stop</button>
-        <label><input id="loop" type="checkbox"> Loop</label>
-        <label><input id="playBass" type="checkbox" checked> Bass</label>
-        <label><input id="playKeys" type="checkbox" checked> Keys</label>
-        <label><input id="playVoice" type="checkbox"> Original recording</label>
-        <button id="midi" disabled>⬇ Download MIDI</button>
-      </div>
+    <section class="panel" aria-labelledby="builder-heading">
+      <h2 id="builder-heading">3. Add instruments</h2>
+      <p class="muted">Describe an instrument and what it should play. It will follow your melody's chords.</p>
+      <form id="builderForm" class="row">
+        <input id="builderText" type="text" placeholder="e.g. warm strings pad, funky clavinet, flute harmony" aria-label="Describe an instrument">
+        <button type="submit" class="primary">+ Add</button>
+      </form>
+      <div id="builderSuggestions" class="chips" aria-label="Suggestions"></div>
+      <p id="builderStatus" class="muted" aria-live="polite"></p>
     </section>
 
     <section class="panel" aria-labelledby="takes-heading">
@@ -96,8 +99,21 @@
         <span id="takeTimer" class="muted" aria-live="polite"></span>
       </div>
       <canvas id="takeMeter" width="600" height="8" aria-hidden="true"></canvas>
-      <p id="takeStatus" class="muted" aria-live="polite">Play drums, guitar or anything else along with your song. Wear headphones so the backing track doesn't leak into the mic.</p>
-      <div id="takes"></div>
+      <p id="takeStatus" class="muted" aria-live="polite">Play drums, guitar or anything else along with your song, or start with drums before you hum anything. Each take becomes a track in the mix below. Wear headphones so the backing track doesn't leak into the mic.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="play-heading">
+      <h2 id="play-heading">5. Mix and play</h2>
+      <p class="muted">Set each instrument's level and position before you take the song into GarageBand.</p>
+      <canvas id="timeline" width="900" height="120" aria-label="Timeline with a lane for each instrument"></canvas>
+      <div id="tracks" class="tracks" aria-label="Tracks"></div>
+      <div class="row">
+        <button id="play" class="primary" disabled>▶ Play</button>
+        <button id="stop" disabled>■ Stop</button>
+        <label><input id="loop" type="checkbox"> Loop</label>
+        <label><input id="playVoice" type="checkbox"> Original recording</label>
+        <button id="midi" disabled>⬇ Download MIDI</button>
+      </div>
     </section>
   </main>
   <script type="module" src="src/app.js"></script>

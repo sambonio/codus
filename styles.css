@@ -8,8 +8,9 @@
   --melody: #868e96;
   --bass: #1971c2;
   --keys: #e8590c;
+  --extra: #2f9e44;
+  --take: #9c36b5;
   --grid: #eeeae2;
-  --take: #2f9e44;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,8 +24,9 @@
     --melody: #adb5bd;
     --bass: #4dabf7;
     --keys: #ff922b;
+    --extra: #69db7c;
+    --take: #da77f2;
     --grid: #2a2925;
-    --take: #69db7c;
   }
 }
 
@@ -75,6 +77,7 @@ button.recording { animation: pulse 1s infinite alternate; }
 
 canvas { display: block; width: 100%; }
 #meter, #takeMeter { height: 8px; margin-top: 12px; border-radius: 4px; background: var(--grid); }
+#timeline { margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 #roll { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
 
 .legend { display: flex; gap: 8px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 0.9rem; }
@@ -82,12 +85,38 @@ canvas { display: block; width: 100%; }
 .swatch.melody { background: var(--melody); }
 .swatch.bass { background: var(--bass); }
 .swatch.keys { background: var(--keys); }
+.swatch.extra { background: var(--extra); }
+.swatch.take { background: var(--take); }
 
-.take { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px; }
-.take .row { gap: 8px 12px; font-size: 0.9rem; }
-.take input.take-name { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; width: 10em; }
-.take input.take-name:hover, .take input.take-name:focus { border-color: var(--border); }
-.take input[type="range"] { width: 6em; }
-.take button { padding: 2px 10px; }
-.take canvas { height: 48px; margin-top: 6px; border: 1px solid var(--border); border-radius: 6px; }
-.take.is-muted canvas { opacity: 0.4; }
+.tracks { display: grid; gap: 8px; margin-bottom: 12px; }
+.tracks:empty { display: none; }
+.track { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.track-name { font-weight: 600; flex-basis: 100%; }
+.track input[type="range"] { width: 120px; accent-color: var(--accent); }
+.track-controls:empty { display: none; }
+
+#builderText { flex: 1 1 260px; min-width: 0; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.chip { border-radius: 999px; font-size: 0.9rem; padding: 4px 12px; }
+.track .remove { padding: 2px 10px; }
+.track select { max-width: 100%; }
+
+.sections { margin: 0 0 12px; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.empty { font-style: italic; }
+.section-edit { margin-top: 12px; }
+.section-edit input { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; width: 10em; }
+.section-edit:has(input:disabled) { display: none; }
+
+.order-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 12px; }
+.order { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.order:empty::before { content: "Nothing yet"; color: var(--muted); }
+.block { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: 2px 4px 2px 10px; font-size: 0.9rem; }
+.block button { border: 0; background: none; padding: 2px 6px; color: var(--muted); }
+.block button:hover:not(:disabled) { color: var(--text); }
+.track label.pan { display: inline-flex; gap: 6px; align-items: center; }
+.track input.pan-range { width: 80px; }
+.track input.take-name { font: inherit; font-weight: 600; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 2px 6px; margin-left: -6px; width: 12em; }
+.track input.take-name:hover, .track input.take-name:focus { border-color: var(--border); }
+.track-name:has(input.take-name) { display: flex; gap: 8px; align-items: center; }
+.track input.nudge { width: 4.5em; }
