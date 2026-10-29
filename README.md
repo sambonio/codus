@@ -22,8 +22,10 @@ You can also open an existing audio file instead of recording.
 2. **Pitch detection** (`src/pitch.js`): the YIN algorithm estimates the pitch of each 64 ms frame (16 ms hop). Quiet frames are gated out relative to the loudest part of the take.
 3. **Notes** (`src/notes.js`): pitches are median-smoothed, corrected for the singer's overall tuning offset (most people aren't at A440), rounded to semitones and grouped into notes. Very short blips and glides are absorbed. Notes can optionally be snapped to an eighth-note grid at a chosen tempo.
 4. **Arrangement** (`src/notes.js`): the key is estimated with Krumhansl-Kessler profiles. The bass either follows the melody an octave or two down, or plays the root of a diatonic chord chosen to fit each melody note. The keys play the melody, optionally on top of that chord.
-5. **Playback**: the bass is either a sampled electric or upright bass (`src/sampler.js`, one recorded note per semitone from A1 to A3) or an analog-style synth bass (`src/synth.js`). Keys are an electric-piano style synth. Everything is scheduled with Web Audio, and the original recording can be played alongside.
-6. **Export** (`src/midi.js`): download melody, bass and keys as a 3-track MIDI file for a DAW.
+5. **Tracks and instruments** (`src/song.js`, `src/instruments/`): the song is the melody plus a list of tracks, each with an instrument, volume, pan, mute and solo. The bass instruments are real multi-sampled recordings (an electric and an upright bass with velocity layers and round robins) plus a synth bass. The keys default to a modelled Hammond organ (`src/instruments/organ.js`) with drawbar presets, key click, percussion, chorus, overdrive and a Leslie speaker with slow/fast. Every mix goes through a room reverb, bus compression and a limiter.
+6. **Instrument builder** (`src/builder.js`, `src/parts.js`): describe an instrument ("warm strings pad", "funky clavinet") and it adds a track that plays sustained chords, arpeggios, rhythmic stabs, a harmony line or the melody, following the chords of your tune. Any of the 128 General MIDI instruments (`src/instruments/gm.js`, fetched per note on demand) can be picked for any track.
+7. **Song sections and mix** (`src/arrangement.js`): hum each part of the song (verse, chorus, bridge...) as its own section and put them in any order, with repeats. One key is detected across the whole song and every section starts on a bar line. The mix view shows a lane per instrument, with level, pan, mute and solo for each track.
+8. **Export** (`src/midi.js`): download the melody and every track as a multi-track MIDI file for a DAW.
 
 ## Tests
 
@@ -35,6 +37,8 @@ The tests synthesise hummed melodies (harmonics, vibrato, detuning, noise) and c
 
 ## Credits
 
-The bass samples in `samples/` come from the Musyng Kite soundfont via
-[gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts), licensed
-[CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/). See `samples/README.md`.
+The electric bass (Swagbass, CC0) and upright bass (Meatbass, CC BY 4.0) are sample
+libraries by Karoryfer Lecolds. See `samples/README.md` for details. The General MIDI
+library is the Musyng Kite soundfont as rendered by
+[gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) (CC BY-SA 3.0),
+loaded from GitHub when an instrument is used.
